@@ -1,3 +1,4 @@
+from waitress import serve
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
@@ -30,4 +31,4 @@ def health():
     return jsonify({'status': 'ok', 'instancia': 'rating2'})
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5002)
+    serve(app, host='0.0.0.0', port=5002, threads=8)
