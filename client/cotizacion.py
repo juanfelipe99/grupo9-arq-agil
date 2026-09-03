@@ -1,3 +1,5 @@
+import logging
+
 from waitress import serve
 from flask import Flask, request, jsonify, render_template
 import requests
@@ -127,12 +129,16 @@ def load_test():
         monto = data.get('monto', 1000)
         tipo = data.get('tipo', 'general')
 
-        MAX_TOTAL = 500
-        total_requests = users * loops
-        if total_requests > MAX_TOTAL:
+        MAX_USERS = 60
+        MAX_LOOPS = 500
+        if users > MAX_USERS or loops > MAX_LOOPS:
             return jsonify({
-                'error': f'Total de peticiones ({total_requests}) excede el limite de {MAX_TOTAL}. Reduce usuarios o iteraciones.'
+                'error': f'Limite excedido: maximo {MAX_USERS} usuarios concurrentes '
+                         f'y {MAX_LOOPS} iteraciones por usuario. '
+                         f'Recibido: {users} usuarios, {loops} iteraciones.'
             }), 400
+
+        total_requests = users * loops
 
         results = []
         errors = 0
@@ -232,4 +238,5 @@ def index():
     return render_template('index.html')
 
 if __name__ == '__main__':
+    logging.getLogger('waitress.queue').setLevel(logging.ERROR)
     serve(app, host='0.0.0.0', port=5000, threads=COTIZACION_THREADS, connection_limit=512, backlog=2048)
