@@ -1,3 +1,6 @@
+import logging
+
+from waitress import serve
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
@@ -54,4 +57,5 @@ def health():
     return jsonify({'status': 'ok', 'componente': 'votacion'})
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5004)
+    logging.getLogger('waitress.queue').setLevel(logging.ERROR)
+    serve(app, host='0.0.0.0', port=5004, threads=32, connection_limit=512, backlog=2048)
