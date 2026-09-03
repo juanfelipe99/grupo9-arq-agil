@@ -19,6 +19,10 @@ app = Flask(__name__, template_folder=os.path.join(PROJECT_ROOT, 'client', 'temp
 
 COTIZAR_URL = 'http://127.0.0.1:5000/cotizar'
 
+COTIZACION_THREADS = 64
+RATING_EXECUTOR = ThreadPoolExecutor(
+    max_workers=COTIZACION_THREADS * len(RATING_INSTANCES))
+
 SESION = requests.Session()
 SESION.mount('http://', requests.adapters.HTTPAdapter(
     pool_connections=16, pool_maxsize=160))
@@ -63,24 +67,32 @@ def cotizar():
 
         start_total = time.perf_counter()
 
-        with ThreadPoolExecutor(max_workers=3) as executor:
-            futures = {}
-            for name, url in RATING_INSTANCES.items():
-                use_fail = (name == fail_target)
-                futures[name] = executor.submit(
-                    call_rating, name, url, payload, use_fail
-                )
-            resultados = [f.result() for f in futures.values()]
+        futures = [
+            RATING_EXECUTOR.submit(call_rating, name, url, payload, name == fail_target)
+            for name, url in RATING_INSTANCES.items()
+        ]
+        resultados = [f.result() for f in futures]
+
+        fin_rating = time.perf_counter()
 
         status, vote_resp = post_json(VOTACION_URL + '/votar', {'resultados': resultados})
         if vote_resp is None:
             return jsonify({'error': f'Votacion returned {status}'}), 500
+        fin_votacion = time.perf_counter()
 
         status, mask_resp = post_json(ENMASCARAMIENTO_URL + '/enmascarar', vote_resp)
         if mask_resp is None:
             return jsonify({'error': f'Enmascaramiento returned {status}'}), 500
+        fin_mask = time.perf_counter()
 
-        total_ms = round((time.perf_counter() - start_total) * 1000, 2)
+        rating_ms = round((fin_rating - start_total) * 1000, 2)
+        votacion_ms = round((fin_votacion - fin_rating) * 1000, 2)
+        enmascaramiento_ms = round((fin_mask - fin_votacion) * 1000, 2)
+        total_ms = round((fin_mask - start_total) * 1000, 2)
+
+        rating_mas_lento_ms = max((r.get('tiempo_ms', 0) for r in resultados), default=0)
+        orquestacion_ms = round(rating_ms - rating_mas_lento_ms, 2)
+
         dentro_limite = total_ms <= RESPONSE_TIME_LIMIT_MS
 
         return jsonify({
@@ -92,7 +104,14 @@ def cotizar():
             'tiempo_total_ms': total_ms,
             'dentro_limite_250ms': dentro_limite,
             'scores_recibidos': vote_resp.get('scores_recibidos'),
-            'latencia_enmascaramiento_ms': mask_resp.get('latencia_ms')
+            'latencia_enmascaramiento_ms': mask_resp.get('latencia_ms'),
+            'etapas_ms': {
+                'rating': rating_ms,
+                'votacion': votacion_ms,
+                'enmascaramiento': enmascaramiento_ms,
+                'rating_mas_lento': rating_mas_lento_ms,
+                'orquestacion': orquestacion_ms
+            }
         })
     except Exception:
         app.logger.exception('Error procesando /cotizar')
@@ -137,7 +156,8 @@ def load_test():
                         'time_ms': body.get('tiempo_total_ms', elapsed),
                         'within_limit': body.get('dentro_limite_250ms', False),
                         'outlier': body.get('outlier_detectado', False),
-                        'rating_fallo': body.get('rating_fallo')
+                        'rating_fallo': body.get('rating_fallo'),
+                        'etapas': body.get('etapas_ms')
                     }
                 else:
                     return {'ok': False, 'time_ms': elapsed, 'error': f'HTTP {resp.status_code}'}
@@ -163,6 +183,14 @@ def load_test():
         within_limit_count = sum(1 for r in ok_results if r['within_limit'])
         outlier_count = sum(1 for r in ok_results if r.get('outlier', False))
 
+        etapas_mediana = {}
+        muestras_etapas = [r['etapas'] for r in ok_results if r.get('etapas')]
+        if muestras_etapas:
+            for clave in ('rating', 'votacion', 'enmascaramiento', 'rating_mas_lento', 'orquestacion'):
+                valores = [m[clave] for m in muestras_etapas if clave in m]
+                if valores:
+                    etapas_mediana[clave] = round(statistics.median(valores), 2)
+
         fail_counts = {}
         for r in ok_results:
             rf = r.get('rating_fallo')
@@ -182,6 +210,7 @@ def load_test():
                 'avg_ms': round(statistics.mean(times), 2) if times else 0,
                 'median_ms': round(statistics.median(times), 2) if times else 0,
             },
+            'etapas_mediana_ms': etapas_mediana,
             'within_250ms': within_limit_count,
             'within_250ms_pct': round(within_limit_count / (total_requests - errors) * 100, 2) if (total_requests - errors) > 0 else 0,
             'outliers_detected': outlier_count,
@@ -203,4 +232,4 @@ def index():
     return render_template('index.html')
 
 if __name__ == '__main__':
-    serve(app, host='0.0.0.0', port=5000, threads=64, connection_limit=512, backlog=2048)
+    serve(app, host='0.0.0.0', port=5000, threads=COTIZACION_THREADS, connection_limit=512, backlog=2048)
