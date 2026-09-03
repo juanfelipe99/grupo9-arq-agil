@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cotizacion - Experimento Votacion</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; padding: 20px; }
+        .container { max-width: 700px; width: 90%; margin: 0 auto; }
+        h1 { text-align: center; margin-bottom: 8px; font-size: 1.5rem; color: #38bdf8; }
+        .subtitle { text-align: center; color: #94a3b8; margin-bottom: 30px; font-size: 0.9rem; }
+        .card { background: #1e293b; border-radius: 12px; padding: 24px; margin-bottom: 20px; border: 1px solid #334155; }
+        .card h2 { font-size: 1.1rem; margin-bottom: 16px; color: #f1f5f9; }
+        label { display: block; margin-bottom: 6px; color: #94a3b8; font-size: 0.85rem; }
+        input, select { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: #e2e8f0; font-size: 1rem; margin-bottom: 14px; }
+        input:focus, select:focus { outline: none; border-color: #38bdf8; }
+        button { width: 100%; padding: 12px; border: none; border-radius: 8px; background: #2563eb; color: white; font-size: 1rem; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+        button:hover { background: #1d4ed8; }
+        button:disabled { background: #475569; cursor: not-allowed; }
+        .result { display: none; }
+        .result.show { display: block; }
+        .metric { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #334155; }
+        .metric:last-child { border-bottom: none; }
+        .metric-label { color: #94a3b8; }
+        .metric-value { font-weight: 600; }
+        .ok { color: #22c55e; }
+        .fail { color: #ef4444; }
+        .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; }
+        .tag-green { background: #166534; color: #86efac; }
+        .tag-red { background: #991b1b; color: #fca5a5; }
+        .tag-purple { background: #581c87; color: #d8b4fe; }
+        .tag-yellow { background: #854d0e; color: #fde047; }
+        .spinner { display: inline-block; width: 24px; height: 24px; border: 3px solid #334155; border-top-color: #38bdf8; border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .total-bar { width: 100%; height: 8px; background: #334155; border-radius: 4px; margin: 6px 0 14px; overflow: hidden; }
+        .total-bar-fill { height: 100%; border-radius: 4px; transition: width 0.3s, background 0.3s; }
+        .input-blocked { border-color: #ef4444 !important; }
+        input[type=number]::-webkit-inner-spin-button { opacity: 1; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        .criteria-box { background: #0f172a; border-radius: 8px; padding: 12px; margin-bottom: 16px; border: 1px solid #1e3a5f; }
+        .criteria-box h3 { font-size: 0.85rem; color: #38bdf8; margin-bottom: 8px; letter-spacing: 0.04em; }
+        .criteria-item { font-size: 0.8rem; color: #64748b; margin-bottom: 4px; }
+        .criteria-item strong { color: #94a3b8; }
+        .info-icon { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; background: #1e40af; color: #93c5fd; font-size: 0.65rem; font-weight: 700; cursor: pointer; margin-left: 6px; vertical-align: middle; border: none; transition: background 0.2s; flex-shrink: 0; }
+        .info-icon:hover { background: #2563eb; }
+        .info-tooltip { display: none; position: fixed; z-index: 1000; max-width: 300px; background: #1e293b; border: 1px solid #38bdf8; border-radius: 10px; padding: 14px 16px; font-size: 0.82rem; color: #cbd5e1; box-shadow: 0 8px 32px rgba(0,0,0,0.5); line-height: 1.5; }
+        .info-tooltip.show { display: block; }
+        .info-tooltip h4 { color: #38bdf8; margin-bottom: 8px; font-size: 0.85rem; }
+        .info-tooltip table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 0.78rem; }
+        .info-tooltip td { padding: 3px 6px; border-bottom: 1px solid #334155; }
+        .info-tooltip td:last-child { text-align: right; color: #86efac; }
+        .info-tooltip .close-tip { float: right; cursor: pointer; color: #94a3b8; font-size: 1rem; line-height: 1; margin-left: 8px; }
+        .card-header { display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; margin-bottom: 0; }
+        .card-header h2 { margin-bottom: 0; }
+        .card-header .toggle-icon { font-size: 1rem; color: #94a3b8; transition: transform 0.2s; }
+        .card-header .toggle-icon.collapsed { transform: rotate(-90deg); }
+        .card-body { margin-top: 16px; }
+        .card-body.collapsed { display: none; }
+        .criteria-item strong { color: #94a3b8; }
+        .verdict { text-align: center; padding: 12px; border-radius: 8px; margin-top: 12px; font-weight: 700; font-size: 1rem; }
+        .verdict-pass { background: #166534; color: #86efac; }
+        .verdict-fail { background: #991b1b; color: #fca5a5; }
+        hr { border: none; border-top: 1px solid #334155; margin: 12px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Experimento Votacion Rating</h1>
+        <p class="subtitle">Modulo 4 - EDA | Disponibilidad Funcional (HA-06)</p>
+
+        <div class="card">
+            <h2>Configuracion de Carga</h2>
+            <div class="grid-2">
+                <div>
+                    <label for="users">Usuarios concurrentes</label>
+                    <input type="number" id="users" value="10" min="1" max="500">
+                </div>
+                <div>
+                    <label for="loops">Iteraciones por usuario</label>
+                    <input type="number" id="loops" value="10" min="1" max="50">
+                </div>
+            </div>
+            <label style="display:flex;align-items:center;gap:0;">
+                <span>Total peticiones:&nbsp;<strong id="total-req">100</strong>&nbsp;/&nbsp;<span style="color:#94a3b8">500</span></span>
+                <button type="button" class="info-icon" onclick="toggleTooltip(event)" title="Por que 500?">i</button>
+                <span id="total-warning" style="display:none;color:#ef4444;font-size:0.8rem;margin-left:8px;">— Excede el limite</span>
+            </label>
+            <div id="info-tooltip" class="info-tooltip">
+                <span class="close-tip" onclick="closeTooltip()">✕</span>
+                <h4>¿Por qué el límite es 500?</h4>
+                El experimento usa el servidor de desarrollo de Flask, que es de <strong>un solo hilo</strong>. Cada petición a <code>/cotizar</code> genera internamente hasta <strong>5 llamadas HTTP</strong> adicionales (3 ratings + votación + enmascaramiento), saturando el servidor bajo alta concurrencia.
+            </div>
+            <div class="total-bar">
+                <div class="total-bar-fill" id="total-bar-fill" style="width:20%;background:#22c55e;"></div>
+            </div>
+            <label for="fail-load">Simular fallo en Rating</label>
+            <select id="fail-load">
+                <option value="">Ninguna</option>
+                <option value="rating1">Rating 1</option>
+                <option value="rating2">Rating 2</option>
+                <option value="rating3">Rating 3</option>
+                <option value="random">Aleatorio</option>
+            </select>
+            <button id="btn-load" onclick="runLoadTest()">Ejecutar Prueba de Carga</button>
+        </div>
+
+        <div id="loading-load" style="display:none;text-align:center;padding:20px;">
+            <div class="spinner"></div>
+            <p style="margin-top:10px;color:#94a3b8">Ejecutando prueba de carga... <span id="load-progress"></span></p>
+        </div>
+
+        <div id="load-result" class="result card">
+            <div class="card-header" onclick="toggleCard('load-result')">
+                <h2>Resultados de la Prueba</h2>
+                <span class="toggle-icon" id="icon-load-result">▼</span>
+            </div>
+            <div class="card-body" id="body-load-result">
+                <div class="criteria-box">
+                    <h3>Criterios</h3>
+                    <div class="criteria-item"><strong>Exito:</strong> 100% peticiones responden correctamente (HTTP 200)</div>
+                    <div class="criteria-item"><strong>Error:</strong> Cualquier peticion retorna error o timeout</div>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Total Peticiones</span>
+                    <span class="metric-value" id="lr-total"></span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Exitosas</span>
+                    <span class="metric-value" id="lr-success"></span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Errores</span>
+                    <span class="metric-value" id="lr-errors"></span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Tiempo Total</span>
+                    <span class="metric-value" id="lr-time"></span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Requests/segundo</span>
+                    <span class="metric-value" id="lr-rps"></span>
+                </div>
+                <div class="verdict" id="lr-verdict-result"></div>
+            </div>
+        </div>
+
+        <div id="load-result-mask" class="result card">
+            <div class="card-header" onclick="toggleCard('load-result-mask')">
+                <h2>Votación y Enmascaramiento</h2>
+                <span class="toggle-icon" id="icon-load-result-mask">▼</span>
+            </div>
+            <div class="card-body" id="body-load-result-mask">
+                <div class="criteria-box">
+                    <h3>Criterios</h3>
+                    <div class="criteria-item"><strong>Exito:</strong> Outliers detectados y resultado incorrecto nunca llega al cliente</div>
+                    <div class="criteria-item"><strong>Error:</strong> Resultado incorrecto se entrega al usuario</div>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Outliers Detectados</span>
+                    <span class="metric-value" id="lr-outliers"></span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Resultado Final Valido</span>
+                    <span class="metric-value"><span class="tag tag-green">Siempre</span></span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Resultado Incorrecto Ocultado</span>
+                    <span class="metric-value"><span class="tag tag-red">Si (cuando falla)</span></span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Distribucion de Fallos</span>
+                    <span class="metric-value" id="lr-fail-dist"></span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Mecanismo</span>
+                    <span class="metric-value"><span class="tag tag-purple">Votacion + Enmascaramiento</span></span>
+                </div>
+                <div class="verdict" id="lr-verdict-mask"></div>
+            </div>
+        </div>
+
+        <div id="load-result-time" class="result card">
+            <div class="card-header" onclick="toggleCard('load-result-time')">
+                <h2>Tiempo de Respuesta</h2>
+                <span class="toggle-icon" id="icon-load-result-time">▼</span>
+            </div>
+            <div class="card-body" id="body-load-result-time">
+                <div class="criteria-box">
+                    <h3>Criterios</h3>
+                    <div class="criteria-item"><strong>Exito:</strong> >= 95% peticiones con tiempo &lt; 250ms</div>
+                    <div class="criteria-item"><strong>Error:</strong> &lt; 95% peticiones dentro del limite</div>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Minimo</span>
+                    <span class="metric-value" id="lr-min"></span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Maximo</span>
+                    <span class="metric-value" id="lr-max"></span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Promedio</span>
+                    <span class="metric-value" id="lr-avg"></span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Mediana (P50)</span>
+                    <span class="metric-value" id="lr-median"></span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Dentro de 250ms</span>
+                    <span class="metric-value" id="lr-within"></span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">% Cumplimiento</span>
+                    <span class="metric-value" id="lr-pct"></span>
+                </div>
+                <div class="verdict" id="lr-verdict-time"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const MAX_TOTAL = 500;
+        const usersInput = document.getElementById('users');
+        const loopsInput = document.getElementById('loops');
+
+        usersInput.addEventListener('input', () => updateTotal('users'));
+        loopsInput.addEventListener('input', () => updateTotal('loops'));
+
+        function updateTotal(changed) {
+            let u = parseInt(usersInput.value) || 1;
+            let l = parseInt(loopsInput.value) || 1;
+
+            // Ajustar el otro campo para no superar MAX_TOTAL
+            if (changed === 'users') {
+                const maxLoops = Math.max(1, Math.floor(MAX_TOTAL / u));
+                loopsInput.max = maxLoops;
+                if (l > maxLoops) {
+                    loopsInput.value = maxLoops;
+                    l = maxLoops;
+                }
+            } else {
+                const maxUsers = Math.max(1, Math.floor(MAX_TOTAL / l));
+                usersInput.max = maxUsers;
+                if (u > maxUsers) {
+                    usersInput.value = maxUsers;
+                    u = maxUsers;
+                }
+            }
+
+            const total = u * l;
+            const pct = Math.min(100, (total / MAX_TOTAL) * 100);
+            const barColor = pct <= 60 ? '#22c55e' : pct <= 85 ? '#f59e0b' : '#ef4444';
+
+            document.getElementById('total-req').textContent = total.toLocaleString();
+            document.getElementById('total-req').style.color = barColor;
+            document.getElementById('total-bar-fill').style.width = pct + '%';
+            document.getElementById('total-bar-fill').style.background = barColor;
+            document.getElementById('total-warning').style.display = total > MAX_TOTAL ? 'inline' : 'none';
+            document.getElementById('btn-load').disabled = total > MAX_TOTAL;
+        }
+
+        function toggleTooltip(event) {
+            const tooltip = document.getElementById('info-tooltip');
+            const btn = event.currentTarget;
+            const rect = btn.getBoundingClientRect();
+            tooltip.style.top = (rect.bottom + window.scrollY + 6) + 'px';
+            tooltip.style.left = Math.min(rect.left, window.innerWidth - 320) + 'px';
+            tooltip.classList.toggle('show');
+            event.stopPropagation();
+        }
+
+        function closeTooltip() {
+            document.getElementById('info-tooltip').classList.remove('show');
+        }
+
+        document.addEventListener('click', function(e) {
+            const tooltip = document.getElementById('info-tooltip');
+            if (!tooltip.contains(e.target)) tooltip.classList.remove('show');
+        });
+
+        function toggleCard(id) {
+            const body = document.getElementById('body-' + id);
+            const icon = document.getElementById('icon-' + id);
+            const collapsed = body.classList.toggle('collapsed');
+            icon.classList.toggle('collapsed', collapsed);
+        }
+
+        function setVerdict(elementId, pass, detail) {
+            const el = document.getElementById(elementId);
+            if (pass) {
+                el.className = 'verdict verdict-pass';
+                el.textContent = `CUMPLE - ${detail}`;
+            } else {
+                el.className = 'verdict verdict-fail';
+                el.textContent = `NO CUMPLE - ${detail}`;
+            }
+        }
+
+        async function runLoadTest() {
+            const u = parseInt(usersInput.value) || 10;
+            const l = parseInt(loopsInput.value) || 10;
+
+            if (u * l > MAX_TOTAL) {
+                alert(`El total de peticiones (${u * l}) excede el limite de ${MAX_TOTAL}.`);
+                return;
+            }
+
+            const btn = document.getElementById('btn-load');
+            const loading = document.getElementById('loading-load');
+            const result = document.getElementById('load-result');
+            const resultMask = document.getElementById('load-result-mask');
+            const resultTime = document.getElementById('load-result-time');
+            btn.disabled = true;
+            loading.style.display = 'block';
+            result.classList.remove('show');
+            resultMask.classList.remove('show');
+            resultTime.classList.remove('show');
+
+            const payload = {
+                users: u,
+                loops: l,
+                fail_mode: document.getElementById('fail-load').value,
+                monto: 1000,
+                tipo: 'general'
+            };
+
+            document.getElementById('load-progress').textContent =
+                `(${u * l} peticiones)...`;
+
+            try {
+                const resp = await fetch('/load-test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await resp.json();
+
+                if (data.error) {
+                    alert(`Error: ${data.error}`);
+                    return;
+                }
+
+                document.getElementById('lr-total').textContent = data.total_requests;
+                document.getElementById('lr-success').innerHTML =
+                    `<span class="ok">${data.success}</span>`;
+                document.getElementById('lr-errors').innerHTML =
+                    data.errors > 0
+                        ? `<span class="fail">${data.errors}</span>`
+                        : '<span class="ok">0</span>';
+                document.getElementById('lr-time').textContent = `${(data.total_time_ms / 1000).toFixed(2)}s`;
+                document.getElementById('lr-rps').textContent = data.rps;
+
+                document.getElementById('lr-min').textContent = `${data.stats.min_ms} ms`;
+                document.getElementById('lr-max').textContent = `${data.stats.max_ms} ms`;
+                document.getElementById('lr-avg').textContent = `${data.stats.avg_ms} ms`;
+                document.getElementById('lr-median').textContent = `${data.stats.median_ms} ms`;
+
+                document.getElementById('lr-within').textContent = `${data.within_250ms} / ${data.success}`;
+                document.getElementById('lr-pct').innerHTML =
+                    data.within_250ms_pct >= 95
+                        ? `<span class="tag tag-green">${data.within_250ms_pct}%</span>`
+                        : `<span class="tag tag-red">${data.within_250ms_pct}%</span>`;
+                document.getElementById('lr-outliers').textContent = data.outliers_detected;
+
+                const dist = data.fail_distribution || {};
+                const distText = Object.keys(dist).length > 0
+                    ? Object.entries(dist).map(([k, v]) => `${k}: ${v}`).join(', ')
+                    : 'Ninguno';
+                document.getElementById('lr-fail-dist').textContent = distText;
+
+                setVerdict('lr-verdict-result', data.errors === 0,
+                    data.errors === 0 ? `${data.success}/${data.total_requests} exitosas` : `${data.errors} errores`);
+                setVerdict('lr-verdict-mask', true, 'Votacion y enmascaramiento funcionales');
+                setVerdict('lr-verdict-time', data.within_250ms_pct >= 95,
+                    `${data.within_250ms_pct}% dentro de 250ms`);
+
+                result.classList.add('show');
+                resultMask.classList.add('show');
+                resultTime.classList.add('show');
+            } catch (err) {
+                alert('Error en la prueba: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                loading.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>
