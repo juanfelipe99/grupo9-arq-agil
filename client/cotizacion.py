@@ -1,3 +1,5 @@
+from concurrent import futures
+
 from flask import Flask, request, jsonify, render_template
 import requests
 import time
@@ -16,6 +18,8 @@ from config import RATING_INSTANCES, VOTACION_URL, ENMASCARAMIENTO_URL, RESPONSE
 app = Flask(__name__, template_folder=os.path.join(PROJECT_ROOT, 'client', 'templates'))
 
 COTIZAR_URL = 'http://127.0.0.1:5000/cotizar'
+RATING_EXECUTOR = ThreadPoolExecutor(max_workers=30)
+
 
 def resolve_fail_rating(fail_rating):
     if fail_rating in ('', 'false', False):
@@ -48,15 +52,17 @@ def cotizar():
 
         start_total = time.time()
 
-        with ThreadPoolExecutor(max_workers=3) as executor:
-            futures = {}
-            for name, url in RATING_INSTANCES.items():
-                use_fail = (name == fail_target)
-                futures[name] = executor.submit(
-                    call_rating, name, url, payload, use_fail
-                )
-            resultados = [f.result() for f in futures.values()]
+        futures = {}
+        for name, url in RATING_INSTANCES.items():
+            use_fail = (name == fail_target)
+            futures[name] = RATING_EXECUTOR.submit(
+                call_rating, name, url, payload, use_fail
+            )
 
+        resultados = [f.result() for f in futures.values()]
+        rating_end = time.time()
+        rating_ms = round((rating_end - start_total) * 1000, 2)
+        vote_start = time.time()
         vote_resp_raw = requests.post(
             VOTACION_URL + '/votar',
             json={'resultados': resultados},
@@ -65,7 +71,9 @@ def cotizar():
         if vote_resp_raw.status_code != 200:
             return jsonify({'error': f'Votacion returned {vote_resp_raw.status_code}', 'body': vote_resp_raw.text}), 500
         vote_resp = vote_resp_raw.json()
+        vote_ms = round((time.time() - vote_start) * 1000, 2)
 
+        mask_start = time.time()
         mask_resp_raw = requests.post(
             ENMASCARAMIENTO_URL + '/enmascarar',
             json=vote_resp,
@@ -74,8 +82,15 @@ def cotizar():
         if mask_resp_raw.status_code != 200:
             return jsonify({'error': f'Enmascaramiento returned {mask_resp_raw.status_code}', 'body': mask_resp_raw.text}), 500
         mask_resp = mask_resp_raw.json()
-
+        mask_ms = round((time.time() - mask_start) * 1000, 2)
         total_ms = round((time.time() - start_total) * 1000, 2)
+        print(
+            f"[TIEMPOS] Rating={rating_ms} ms | "
+            f"Votacion={vote_ms} ms | "
+            f"Enmascaramiento={mask_ms} ms | "
+            f"Total={total_ms} ms"
+        )
+        
         dentro_limite = total_ms <= RESPONSE_TIME_LIMIT_MS
 
         return jsonify({
@@ -87,7 +102,10 @@ def cotizar():
             'tiempo_total_ms': total_ms,
             'dentro_limite_250ms': dentro_limite,
             'scores_recibidos': vote_resp.get('scores_recibidos'),
-            'latencia_enmascaramiento_ms': mask_resp.get('latencia_ms')
+            'latencia_enmascaramiento_ms': mask_resp.get('latencia_ms'),
+            'rating_ms': rating_ms,
+            'votacion_ms': vote_ms,
+            'enmascaramiento_ms': mask_ms
         })
     except Exception as e:
         return jsonify({'error': str(e), 'trace': traceback.format_exc()}), 500
@@ -196,4 +214,4 @@ def index():
     return render_template('index.html')
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=5000, threaded=True)

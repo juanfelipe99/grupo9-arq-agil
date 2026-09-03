@@ -13,14 +13,13 @@ def enmascarar():
     if resultado_valido is None:
         return jsonify({'error': 'No se recibio resultado valido'}), 400
 
-    latency = random.uniform(0.01, 0.03)
-    time.sleep(latency)
+   
 
     return jsonify({
         'resultado_final': resultado_valido,
         'resultado_ocultado': descartado,
         'enmascarado': True,
-        'latencia_ms': round(latency * 1000, 2)
+        'latencia_ms': 0
     })
 
 @app.route('/health', methods=['GET'])
@@ -28,4 +27,4 @@ def health():
     return jsonify({'status': 'ok', 'componente': 'enmascaramiento'})
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5005)
+    app.run(host='0.0.0.0', port=5005, threaded=True)
