@@ -5,10 +5,6 @@ import time
 
 app = Flask(__name__)
 
-# Latencia simulada del enmascaramiento, en ms (minimo, maximo).
-# Medida en ~20 ms de promedio, era el componente mas caro de toda la cadena
-# sin realizar trabajo util. (0, 0) la desactiva; subelo si quieres volver a
-# representar un costo de procesamiento en el experimento.
 LATENCIA_SIMULADA_MS = (0, 0)
 _LAT_MIN, _LAT_MAX = LATENCIA_SIMULADA_MS
 
