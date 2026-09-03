@@ -55,4 +55,4 @@ def health():
     return jsonify({'status': 'ok', 'componente': 'votacion'})
 
 if __name__ == '__main__':
-    serve(app, host='0.0.0.0', port=5004, threads=8)
+    serve(app, host='0.0.0.0', port=5004, threads=32, connection_limit=512, backlog=2048)

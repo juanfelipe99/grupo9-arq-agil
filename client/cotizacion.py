@@ -1,6 +1,8 @@
 from waitress import serve
 from flask import Flask, request, jsonify, render_template
 import requests
+import urllib3
+import json
 import time
 import os
 import random
@@ -25,7 +27,24 @@ COTIZAR_URL = 'http://127.0.0.1:5000/cotizar'
 # empieza a fallar con WinError 10048 por causas ajenas al experimento.
 SESION = requests.Session()
 SESION.mount('http://', requests.adapters.HTTPAdapter(
-    pool_connections=64, pool_maxsize=64))
+    pool_connections=16, pool_maxsize=160))
+
+# Cliente de bajo nivel para las 5 llamadas internas del camino critico.
+# requests agrega ~0.5-1 ms de Python puro por llamada (construir el
+# PreparedRequest, hooks, cookies, redirecciones). Cotizacion es el unico
+# proceso por el que pasan TODAS las peticiones y esta limitado por su GIL,
+# asi que ese sobrecosto le pone techo al throughput del sistema completo.
+# urllib3 hace el mismo HTTP con keep-alive pero sin esa capa.
+POOL = urllib3.PoolManager(num_pools=16, maxsize=160, retries=False, block=False)
+_JSON_HEADERS = {'Content-Type': 'application/json'}
+
+def post_json(url, obj, timeout=10):
+    """POST de un dict como JSON. Devuelve (status, dict) o (status, None)."""
+    r = POOL.request('POST', url, body=json.dumps(obj).encode('utf-8'),
+                     headers=_JSON_HEADERS, timeout=timeout)
+    if r.status != 200:
+        return r.status, None
+    return r.status, json.loads(r.data)
 
 def resolve_fail_rating(fail_rating):
     if fail_rating in ('', 'false', False):
@@ -39,9 +58,8 @@ def resolve_fail_rating(fail_rating):
 def call_rating(name, url, payload, fail=False):
     start = time.time()
     query = '?fail=true' if fail else ''
-    resp = SESION.post(f"{url}/calcular{query}", json=payload, timeout=10)
+    _, data = post_json(f"{url}/calcular{query}", payload)
     elapsed_ms = round((time.time() - start) * 1000, 2)
-    data = resp.json()
     data['tiempo_ms'] = elapsed_ms
     return data
 
@@ -67,23 +85,13 @@ def cotizar():
                 )
             resultados = [f.result() for f in futures.values()]
 
-        vote_resp_raw = SESION.post(
-            VOTACION_URL + '/votar',
-            json={'resultados': resultados},
-            timeout=10
-        )
-        if vote_resp_raw.status_code != 200:
-            return jsonify({'error': f'Votacion returned {vote_resp_raw.status_code}', 'body': vote_resp_raw.text}), 500
-        vote_resp = vote_resp_raw.json()
+        status, vote_resp = post_json(VOTACION_URL + '/votar', {'resultados': resultados})
+        if vote_resp is None:
+            return jsonify({'error': f'Votacion returned {status}'}), 500
 
-        mask_resp_raw = SESION.post(
-            ENMASCARAMIENTO_URL + '/enmascarar',
-            json=vote_resp,
-            timeout=10
-        )
-        if mask_resp_raw.status_code != 200:
-            return jsonify({'error': f'Enmascaramiento returned {mask_resp_raw.status_code}', 'body': mask_resp_raw.text}), 500
-        mask_resp = mask_resp_raw.json()
+        status, mask_resp = post_json(ENMASCARAMIENTO_URL + '/enmascarar', vote_resp)
+        if mask_resp is None:
+            return jsonify({'error': f'Enmascaramiento returned {status}'}), 500
 
         total_ms = round((time.time() - start_total) * 1000, 2)
         dentro_limite = total_ms <= RESPONSE_TIME_LIMIT_MS
@@ -206,4 +214,4 @@ def index():
     return render_template('index.html')
 
 if __name__ == '__main__':
-    serve(app, host='0.0.0.0', port=5000, threads=8)
+    serve(app, host='0.0.0.0', port=5000, threads=64, connection_limit=512, backlog=2048)
