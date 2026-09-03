@@ -31,4 +31,4 @@ def health():
     return jsonify({'status': 'ok', 'instancia': 'rating3'})
 
 if __name__ == '__main__':
-    serve(app, host='0.0.0.0', port=5003, threads=8)
+    serve(app, host='0.0.0.0', port=5003, threads=32, connection_limit=512, backlog=2048)
