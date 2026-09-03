@@ -1,3 +1,4 @@
+from waitress import serve
 from flask import Flask, request, jsonify, render_template
 import requests
 import time
@@ -17,6 +18,15 @@ app = Flask(__name__, template_folder=os.path.join(PROJECT_ROOT, 'client', 'temp
 
 COTIZAR_URL = 'http://127.0.0.1:5000/cotizar'
 
+# Sesion HTTP unica del proceso, con pool de conexiones reutilizables.
+# Cada requests.post() suelto abre una conexion TCP nueva que en Windows queda
+# en TIME_WAIT ~120 s. Como cada cotizacion dispara 5 llamadas internas, una
+# prueba de carga sostenida agota los ~14.000 puertos efimeros del sistema y
+# empieza a fallar con WinError 10048 por causas ajenas al experimento.
+SESION = requests.Session()
+SESION.mount('http://', requests.adapters.HTTPAdapter(
+    pool_connections=64, pool_maxsize=64))
+
 def resolve_fail_rating(fail_rating):
     if fail_rating in ('', 'false', False):
         return None
@@ -29,7 +39,7 @@ def resolve_fail_rating(fail_rating):
 def call_rating(name, url, payload, fail=False):
     start = time.time()
     query = '?fail=true' if fail else ''
-    resp = requests.post(f"{url}/calcular{query}", json=payload, timeout=10)
+    resp = SESION.post(f"{url}/calcular{query}", json=payload, timeout=10)
     elapsed_ms = round((time.time() - start) * 1000, 2)
     data = resp.json()
     data['tiempo_ms'] = elapsed_ms
@@ -57,7 +67,7 @@ def cotizar():
                 )
             resultados = [f.result() for f in futures.values()]
 
-        vote_resp_raw = requests.post(
+        vote_resp_raw = SESION.post(
             VOTACION_URL + '/votar',
             json={'resultados': resultados},
             timeout=10
@@ -66,7 +76,7 @@ def cotizar():
             return jsonify({'error': f'Votacion returned {vote_resp_raw.status_code}', 'body': vote_resp_raw.text}), 500
         vote_resp = vote_resp_raw.json()
 
-        mask_resp_raw = requests.post(
+        mask_resp_raw = SESION.post(
             ENMASCARAMIENTO_URL + '/enmascarar',
             json=vote_resp,
             timeout=10
@@ -122,7 +132,7 @@ def load_test():
                     'tipo': tipo,
                     'fail_rating': current_fail or ''
                 }
-                resp = requests.post(COTIZAR_URL, json=payload, timeout=30)
+                resp = SESION.post(COTIZAR_URL, json=payload, timeout=30)
                 elapsed = round((time.time() - start) * 1000, 2)
                 if resp.status_code == 200:
                     body = resp.json()
@@ -196,4 +206,4 @@ def index():
     return render_template('index.html')
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    serve(app, host='0.0.0.0', port=5000, threads=8)
