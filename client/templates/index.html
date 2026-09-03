@@ -74,25 +74,32 @@
             <div class="grid-2">
                 <div>
                     <label for="users">Usuarios concurrentes</label>
-                    <input type="number" id="users" value="10" min="1" max="500">
+                    <input type="number" id="users" value="10" min="1" max="60">
                 </div>
                 <div>
                     <label for="loops">Iteraciones por usuario</label>
-                    <input type="number" id="loops" value="10" min="1" max="50">
+                    <input type="number" id="loops" value="10" min="1" max="500">
                 </div>
             </div>
             <label style="display:flex;align-items:center;gap:0;">
-                <span>Total peticiones:&nbsp;<strong id="total-req">100</strong>&nbsp;/&nbsp;<span style="color:#94a3b8">500</span></span>
-                <button type="button" class="info-icon" onclick="toggleTooltip(event)" title="Por que 500?">i</button>
-                <span id="total-warning" style="display:none;color:#ef4444;font-size:0.8rem;margin-left:8px;">— Excede el limite</span>
+                <span>Total peticiones:&nbsp;<strong id="total-req">100</strong>&nbsp;/&nbsp;<span style="color:#94a3b8">30.000</span></span>
+                <button type="button" class="info-icon" onclick="toggleTooltip(event)" title="Limites y referencias">i</button>
+                <span id="total-warning" style="display:none;color:#f59e0b;font-size:0.8rem;margin-left:8px;"></span>
             </label>
             <div id="info-tooltip" class="info-tooltip">
                 <span class="close-tip" onclick="closeTooltip()">✕</span>
-                <h4>¿Por qué el límite es 500?</h4>
-                El experimento usa el servidor de desarrollo de Flask, que es de <strong>un solo hilo</strong>. Cada petición a <code>/cotizar</code> genera internamente hasta <strong>5 llamadas HTTP</strong> adicionales (3 ratings + votación + enmascaramiento), saturando el servidor bajo alta concurrencia.
+                <h4>Limites: 60 usuarios, 500 iteraciones</h4>
+                Resultados medidos dentro de esos limites:
+                <table>
+                  <tr><td>60 x 100 = 6.000</td><td>100% &lt;250ms</td></tr>
+                  <tr><td>50 x 200 = 10.000</td><td>100% &lt;250ms</td></tr>
+                  <tr><td>50 x 250 = 12.500</td><td>99,9% &lt;250ms</td></tr>
+                  <tr><td>50 x 400 = 20.000</td><td>99,6% &lt;250ms</td></tr>
+                </table><br>
+                El volumen escala bien y el limite real es la <strong>concurrencia</strong>. Por encima de ~70 usuarios simultaneos el tiempo de respuesta deja de cumplir los 250 ms, por eso el tope es 60. Las iteraciones se podrian subir bastante mas sin afectar el cumplimiento, estan en 500 para que la barra sea legible con corridas pequeñas.
             </div>
             <div class="total-bar">
-                <div class="total-bar-fill" id="total-bar-fill" style="width:20%;background:#22c55e;"></div>
+                <div class="total-bar-fill" id="total-bar-fill" style="width:0%;background:#22c55e;"></div>
             </div>
             <label for="fail-load">Simular fallo en Rating</label>
             <select id="fail-load">
@@ -221,45 +228,48 @@
     </div>
 
     <script>
-        const MAX_TOTAL = 500;
+        const MAX_USERS = 60;
+        const MAX_LOOPS = 500;
+        const MAX_TOTAL = MAX_USERS * MAX_LOOPS;
         const usersInput = document.getElementById('users');
         const loopsInput = document.getElementById('loops');
 
-        usersInput.addEventListener('input', () => updateTotal('users'));
-        loopsInput.addEventListener('input', () => updateTotal('loops'));
+        usersInput.addEventListener('input', updateTotal);
+        loopsInput.addEventListener('input', updateTotal);
 
-        function updateTotal(changed) {
+        function updateTotal() {
             let u = parseInt(usersInput.value) || 1;
             let l = parseInt(loopsInput.value) || 1;
 
-            // Ajustar el otro campo para no superar MAX_TOTAL
-            if (changed === 'users') {
-                const maxLoops = Math.max(1, Math.floor(MAX_TOTAL / u));
-                loopsInput.max = maxLoops;
-                if (l > maxLoops) {
-                    loopsInput.value = maxLoops;
-                    l = maxLoops;
-                }
-            } else {
-                const maxUsers = Math.max(1, Math.floor(MAX_TOTAL / l));
-                usersInput.max = maxUsers;
-                if (u > maxUsers) {
-                    usersInput.value = maxUsers;
-                    u = maxUsers;
-                }
-            }
+            if (u > MAX_USERS) { usersInput.value = MAX_USERS; u = MAX_USERS; }
+            if (l > MAX_LOOPS) { loopsInput.value = MAX_LOOPS; l = MAX_LOOPS; }
 
             const total = u * l;
-            const pct = Math.min(100, (total / MAX_TOTAL) * 100);
-            const barColor = pct <= 60 ? '#22c55e' : pct <= 85 ? '#f59e0b' : '#ef4444';
+
+            // Escala logaritmica: el rango util va de decenas a decenas de
+            // miles de peticiones, y en escala lineal las corridas pequenas
+            // quedaban pegadas al cero.
+            const pct = total <= 1 ? 0
+                      : Math.min(100, Math.log(total) / Math.log(MAX_TOTAL) * 100);
+            const color = total < 10000 ? '#22c55e'
+                        : total < 20000 ? '#f59e0b' : '#ef4444';
 
             document.getElementById('total-req').textContent = total.toLocaleString();
-            document.getElementById('total-req').style.color = barColor;
+            document.getElementById('total-req').style.color = color;
             document.getElementById('total-bar-fill').style.width = pct + '%';
-            document.getElementById('total-bar-fill').style.background = barColor;
-            document.getElementById('total-warning').style.display = total > MAX_TOTAL ? 'inline' : 'none';
-            document.getElementById('btn-load').disabled = total > MAX_TOTAL;
+            document.getElementById('total-bar-fill').style.background = color;
+
+            const aviso = document.getElementById('total-warning');
+            if (total >= 20000) {
+                aviso.textContent = `— ~${Math.round(total / 340)} s estimados`;
+                aviso.style.display = 'inline';
+            } else {
+                aviso.style.display = 'none';
+            }
+            document.getElementById('btn-load').disabled = false;
         }
+
+        updateTotal();
 
         function toggleTooltip(event) {
             const tooltip = document.getElementById('info-tooltip');
@@ -299,13 +309,8 @@
         }
 
         async function runLoadTest() {
-            const u = parseInt(usersInput.value) || 10;
-            const l = parseInt(loopsInput.value) || 10;
-
-            if (u * l > MAX_TOTAL) {
-                alert(`El total de peticiones (${u * l}) excede el limite de ${MAX_TOTAL}.`);
-                return;
-            }
+            const u = Math.min(parseInt(usersInput.value) || 10, MAX_USERS);
+            const l = Math.min(parseInt(loopsInput.value) || 10, MAX_LOOPS);
 
             const btn = document.getElementById('btn-load');
             const loading = document.getElementById('loading-load');

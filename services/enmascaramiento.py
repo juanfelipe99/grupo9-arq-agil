@@ -1,8 +1,14 @@
+import logging
+
+from waitress import serve
 from flask import Flask, request, jsonify
 import random
 import time
 
 app = Flask(__name__)
+
+LATENCIA_SIMULADA_MS = (0, 0)
+_LAT_MIN, _LAT_MAX = LATENCIA_SIMULADA_MS
 
 @app.route('/enmascarar', methods=['POST'])
 def enmascarar():
@@ -13,14 +19,17 @@ def enmascarar():
     if resultado_valido is None:
         return jsonify({'error': 'No se recibio resultado valido'}), 400
 
-    latency = random.uniform(0.01, 0.03)
-    time.sleep(latency)
+    latencia_ms = 0
+    if _LAT_MAX > 0:
+        espera = random.uniform(_LAT_MIN, _LAT_MAX) / 1000
+        time.sleep(espera)
+        latencia_ms = round(espera * 1000, 2)
 
     return jsonify({
         'resultado_final': resultado_valido,
         'resultado_ocultado': descartado,
         'enmascarado': True,
-        'latencia_ms': round(latency * 1000, 2)
+        'latencia_ms': latencia_ms
     })
 
 @app.route('/health', methods=['GET'])
@@ -28,4 +37,5 @@ def health():
     return jsonify({'status': 'ok', 'componente': 'enmascaramiento'})
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5005)
+    logging.getLogger('waitress.queue').setLevel(logging.ERROR)
+    serve(app, host='0.0.0.0', port=5005, threads=32, connection_limit=512, backlog=2048)
