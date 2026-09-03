@@ -1,3 +1,5 @@
+import logging
+
 from waitress import serve
 from flask import Flask, request, jsonify
 import random
@@ -35,4 +37,5 @@ def health():
     return jsonify({'status': 'ok', 'componente': 'enmascaramiento'})
 
 if __name__ == '__main__':
+    logging.getLogger('waitress.queue').setLevel(logging.ERROR)
     serve(app, host='0.0.0.0', port=5005, threads=32, connection_limit=512, backlog=2048)
