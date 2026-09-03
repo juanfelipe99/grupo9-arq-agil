@@ -7,7 +7,6 @@ import time
 import os
 import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import traceback
 import statistics
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -20,26 +19,14 @@ app = Flask(__name__, template_folder=os.path.join(PROJECT_ROOT, 'client', 'temp
 
 COTIZAR_URL = 'http://127.0.0.1:5000/cotizar'
 
-# Sesion HTTP unica del proceso, con pool de conexiones reutilizables.
-# Cada requests.post() suelto abre una conexion TCP nueva que en Windows queda
-# en TIME_WAIT ~120 s. Como cada cotizacion dispara 5 llamadas internas, una
-# prueba de carga sostenida agota los ~14.000 puertos efimeros del sistema y
-# empieza a fallar con WinError 10048 por causas ajenas al experimento.
 SESION = requests.Session()
 SESION.mount('http://', requests.adapters.HTTPAdapter(
     pool_connections=16, pool_maxsize=160))
 
-# Cliente de bajo nivel para las 5 llamadas internas del camino critico.
-# requests agrega ~0.5-1 ms de Python puro por llamada (construir el
-# PreparedRequest, hooks, cookies, redirecciones). Cotizacion es el unico
-# proceso por el que pasan TODAS las peticiones y esta limitado por su GIL,
-# asi que ese sobrecosto le pone techo al throughput del sistema completo.
-# urllib3 hace el mismo HTTP con keep-alive pero sin esa capa.
 POOL = urllib3.PoolManager(num_pools=16, maxsize=160, retries=False, block=False)
 _JSON_HEADERS = {'Content-Type': 'application/json'}
 
 def post_json(url, obj, timeout=10):
-    """POST de un dict como JSON. Devuelve (status, dict) o (status, None)."""
     r = POOL.request('POST', url, body=json.dumps(obj).encode('utf-8'),
                      headers=_JSON_HEADERS, timeout=timeout)
     if r.status != 200:
@@ -56,10 +43,10 @@ def resolve_fail_rating(fail_rating):
     return None
 
 def call_rating(name, url, payload, fail=False):
-    start = time.time()
+    start = time.perf_counter()
     query = '?fail=true' if fail else ''
     _, data = post_json(f"{url}/calcular{query}", payload)
-    elapsed_ms = round((time.time() - start) * 1000, 2)
+    elapsed_ms = round((time.perf_counter() - start) * 1000, 2)
     data['tiempo_ms'] = elapsed_ms
     return data
 
@@ -74,7 +61,7 @@ def cotizar():
         fail_target = resolve_fail_rating(fail_rating)
         payload = {'monto': monto, 'tipo': tipo}
 
-        start_total = time.time()
+        start_total = time.perf_counter()
 
         with ThreadPoolExecutor(max_workers=3) as executor:
             futures = {}
@@ -93,7 +80,7 @@ def cotizar():
         if mask_resp is None:
             return jsonify({'error': f'Enmascaramiento returned {status}'}), 500
 
-        total_ms = round((time.time() - start_total) * 1000, 2)
+        total_ms = round((time.perf_counter() - start_total) * 1000, 2)
         dentro_limite = total_ms <= RESPONSE_TIME_LIMIT_MS
 
         return jsonify({
@@ -107,8 +94,9 @@ def cotizar():
             'scores_recibidos': vote_resp.get('scores_recibidos'),
             'latencia_enmascaramiento_ms': mask_resp.get('latencia_ms')
         })
-    except Exception as e:
-        return jsonify({'error': str(e), 'trace': traceback.format_exc()}), 500
+    except Exception:
+        app.logger.exception('Error procesando /cotizar')
+        return jsonify({'error': 'Error interno procesando la cotizacion'}), 500
 
 @app.route('/load-test', methods=['POST'])
 def load_test():
@@ -129,10 +117,10 @@ def load_test():
 
         results = []
         errors = 0
-        start_all = time.time()
+        start_all = time.perf_counter()
 
         def single_request(idx):
-            start = time.time()
+            start = time.perf_counter()
             try:
                 current_fail = resolve_fail_rating(fail_mode)
                 payload = {
@@ -141,7 +129,7 @@ def load_test():
                     'fail_rating': current_fail or ''
                 }
                 resp = SESION.post(COTIZAR_URL, json=payload, timeout=30)
-                elapsed = round((time.time() - start) * 1000, 2)
+                elapsed = round((time.perf_counter() - start) * 1000, 2)
                 if resp.status_code == 200:
                     body = resp.json()
                     return {
@@ -154,7 +142,7 @@ def load_test():
                 else:
                     return {'ok': False, 'time_ms': elapsed, 'error': f'HTTP {resp.status_code}'}
             except Exception as e:
-                elapsed = round((time.time() - start) * 1000, 2)
+                elapsed = round((time.perf_counter() - start) * 1000, 2)
                 return {'ok': False, 'time_ms': elapsed, 'error': str(e)}
 
         with ThreadPoolExecutor(max_workers=users) as executor:
@@ -168,7 +156,7 @@ def load_test():
                 if not r['ok']:
                     errors += 1
 
-        total_time = round((time.time() - start_all) * 1000, 2)
+        total_time = round((time.perf_counter() - start_all) * 1000, 2)
         times = [r['time_ms'] for r in results]
         ok_results = [r for r in results if r['ok']]
 
@@ -202,8 +190,9 @@ def load_test():
         }
 
         return jsonify(response)
-    except Exception as e:
-        return jsonify({'error': str(e), 'trace': traceback.format_exc()}), 500
+    except Exception:
+        app.logger.exception('Error procesando /load-test')
+        return jsonify({'error': 'Error interno ejecutando la prueba de carga'}), 500
 
 @app.route('/health', methods=['GET'])
 def health():
