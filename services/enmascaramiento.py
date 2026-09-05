@@ -1,4 +1,5 @@
 import logging
+import os
 
 from waitress import serve
 from flask import Flask, request, jsonify
@@ -6,6 +7,8 @@ import random
 import time
 
 app = Flask(__name__)
+
+SERVICE_THREADS = int(os.environ.get('SERVICE_THREADS', 32))
 
 LATENCIA_SIMULADA_MS = (0, 0)
 _LAT_MIN, _LAT_MAX = LATENCIA_SIMULADA_MS
@@ -38,4 +41,4 @@ def health():
 
 if __name__ == '__main__':
     logging.getLogger('waitress.queue').setLevel(logging.ERROR)
-    serve(app, host='0.0.0.0', port=5005, threads=32, connection_limit=512, backlog=2048)
+    serve(app, host='0.0.0.0', port=5005, threads=SERVICE_THREADS, connection_limit=512, backlog=2048)

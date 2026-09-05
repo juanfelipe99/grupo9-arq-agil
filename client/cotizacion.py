@@ -22,7 +22,7 @@ app = Flask(__name__, template_folder=os.path.join(PROJECT_ROOT, 'client', 'temp
 PORT = int(os.environ.get('PORT', 5000))
 COTIZAR_URL = f'http://127.0.0.1:{PORT}/cotizar'
 
-COTIZACION_THREADS = 64
+COTIZACION_THREADS = int(os.environ.get('COTIZACION_THREADS', 64))
 RATING_EXECUTOR = ThreadPoolExecutor(
     max_workers=COTIZACION_THREADS * len(RATING_INSTANCES))
 
