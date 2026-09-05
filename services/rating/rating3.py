@@ -1,9 +1,12 @@
 import logging
+import os
 
 from waitress import serve
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
+
+SERVICE_THREADS = int(os.environ.get('SERVICE_THREADS', 32))
 
 @app.route('/calcular', methods=['POST'])
 def calcular():
@@ -34,4 +37,4 @@ def health():
 
 if __name__ == '__main__':
     logging.getLogger('waitress.queue').setLevel(logging.ERROR)
-    serve(app, host='0.0.0.0', port=5003, threads=32, connection_limit=512, backlog=2048)
+    serve(app, host='0.0.0.0', port=5003, threads=SERVICE_THREADS, connection_limit=512, backlog=2048)
