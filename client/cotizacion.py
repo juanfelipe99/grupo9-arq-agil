@@ -19,7 +19,8 @@ from config import RATING_INSTANCES, VOTACION_URL, ENMASCARAMIENTO_URL, RESPONSE
 
 app = Flask(__name__, template_folder=os.path.join(PROJECT_ROOT, 'client', 'templates'))
 
-COTIZAR_URL = 'http://127.0.0.1:5000/cotizar'
+PORT = int(os.environ.get('PORT', 5000))
+COTIZAR_URL = f'http://127.0.0.1:{PORT}/cotizar'
 
 COTIZACION_THREADS = 64
 RATING_EXECUTOR = ThreadPoolExecutor(
@@ -239,4 +240,4 @@ def index():
 
 if __name__ == '__main__':
     logging.getLogger('waitress.queue').setLevel(logging.ERROR)
-    serve(app, host='0.0.0.0', port=5000, threads=COTIZACION_THREADS, connection_limit=512, backlog=2048)
+    serve(app, host='0.0.0.0', port=PORT, threads=COTIZACION_THREADS, connection_limit=512, backlog=2048)
