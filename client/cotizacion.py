@@ -24,7 +24,7 @@ app = Flask(__name__, template_folder=os.path.join(PROJECT_ROOT, 'client', 'temp
 PORT = int(os.environ.get('PORT', 5000))
 COTIZAR_URL = f'http://127.0.0.1:{PORT}/cotizar'
 
-COTIZACION_THREADS = int(os.environ.get('COTIZACION_THREADS', 24))
+COTIZACION_THREADS = int(os.environ.get('COTIZACION_THREADS', 16))
 RATING_EXECUTOR = ThreadPoolExecutor(
     max_workers=COTIZACION_THREADS * len(RATING_INSTANCES))
 
@@ -132,8 +132,8 @@ def load_test():
     users = data.get('users', 10)
     loops = data.get('loops', 10)
 
-    MAX_USERS = 60
-    MAX_LOOPS = 500
+    MAX_USERS = 50
+    MAX_LOOPS = 600
     if not isinstance(users, int) or not isinstance(loops, int) or users < 1 or loops < 1:
         return jsonify({'error': 'users y loops deben ser enteros mayores que cero'}), 400
     if users > MAX_USERS or loops > MAX_LOOPS:
