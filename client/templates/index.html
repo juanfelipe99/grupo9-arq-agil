@@ -74,7 +74,7 @@
             <div class="grid-2">
                 <div>
                     <label for="users">Usuarios concurrentes</label>
-                    <input type="number" id="users" value="10" min="1" max="60">
+                    <input type="number" id="users" value="10" min="1" max="50">
                 </div>
                 <div>
                     <label for="loops">Iteraciones por usuario</label>
@@ -82,16 +82,16 @@
                 </div>
             </div>
             <label style="display:flex;align-items:center;gap:0;">
-                <span>Total peticiones:&nbsp;<strong id="total-req">100</strong>&nbsp;/&nbsp;<span style="color:#94a3b8">36.000</span></span>
+                <span>Total peticiones:&nbsp;<strong id="total-req">100</strong>&nbsp;/&nbsp;<span style="color:#94a3b8">30.000</span></span>
                 <button type="button" class="info-icon" onclick="toggleTooltip(event)" title="Limites y referencias">i</button>
             </label>
             <div id="info-tooltip" class="info-tooltip">
                 <span class="close-tip" onclick="closeTooltip()">✕</span>
-                <h4>Limites: 60 usuarios, 600 iteraciones</h4>
+                <h4>Limites: 50 usuarios, 600 iteraciones</h4>
                 En la corrida completa, 50 x 600 = 30.000 peticiones con fallo
                 aleatorio, el <strong>100% quedo por debajo de 250 ms</strong> sin
                 ningun error.<br><br>
-                El volumen escala bien y el limite real es la <strong>concurrencia</strong>. Por encima de ~70 usuarios simultaneos el tiempo de respuesta deja de cumplir los 250 ms, por eso el tope es 60.
+                El volumen escala bien y el limite real es la <strong>concurrencia</strong>. Por encima de ~70 usuarios simultaneos el tiempo de respuesta deja de cumplir los 250 ms, por eso el tope es 50.
             </div>
             <div class="total-bar">
                 <div class="total-bar-fill" id="total-bar-fill" style="width:0%;background:#22c55e;"></div>
@@ -223,7 +223,7 @@
     </div>
 
     <script>
-        const MAX_USERS = 60;
+        const MAX_USERS = 50;
         const MAX_LOOPS = 600;
         const MAX_TOTAL = MAX_USERS * MAX_LOOPS;
         const usersInput = document.getElementById('users');

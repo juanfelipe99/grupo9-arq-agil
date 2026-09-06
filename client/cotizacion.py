@@ -132,7 +132,7 @@ def load_test():
     users = data.get('users', 10)
     loops = data.get('loops', 10)
 
-    MAX_USERS = 60
+    MAX_USERS = 50
     MAX_LOOPS = 600
     if not isinstance(users, int) or not isinstance(loops, int) or users < 1 or loops < 1:
         return jsonify({'error': 'users y loops deben ser enteros mayores que cero'}), 400
