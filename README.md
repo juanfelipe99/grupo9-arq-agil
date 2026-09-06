@@ -27,6 +27,8 @@ Validar que la arquitectura de Cotización y Rating puede detectar y ocultar med
 ```
 flask>=3.0
 requests>=2.31
+waitress>=3.0
+urllib3>=2.0
 ```
 
 ### Instalación
