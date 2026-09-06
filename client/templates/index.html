@@ -308,82 +308,101 @@
             }
         }
 
+        async function leerJson(resp) {
+            // El servidor siempre responde JSON. Si llega HTML es que algo
+            // intermedio corto la peticion, tipicamente un timeout del router.
+            const texto = await resp.text();
+            try {
+                return JSON.parse(texto);
+            } catch (e) {
+                throw new Error(
+                    `El servidor respondio con una pagina de error en vez de datos ` +
+                    `(HTTP ${resp.status}). Suele pasar por un timeout del proxy. ` +
+                    `Prueba con menos peticiones.`);
+            }
+        }
+
+        function mostrarResultados(data) {
+            document.getElementById('lr-total').textContent = data.total_requests;
+            document.getElementById('lr-success').innerHTML = `<span class="ok">${data.success}</span>`;
+            document.getElementById('lr-errors').innerHTML = data.errors > 0
+                ? `<span class="fail">${data.errors}</span>` : '<span class="ok">0</span>';
+            document.getElementById('lr-time').textContent = `${(data.total_time_ms / 1000).toFixed(2)}s`;
+            document.getElementById('lr-rps').textContent = data.rps;
+
+            document.getElementById('lr-min').textContent = `${data.stats.min_ms} ms`;
+            document.getElementById('lr-max').textContent = `${data.stats.max_ms} ms`;
+            document.getElementById('lr-avg').textContent = `${data.stats.avg_ms} ms`;
+            document.getElementById('lr-median').textContent = `${data.stats.median_ms} ms`;
+
+            document.getElementById('lr-within').textContent = `${data.within_250ms} / ${data.success}`;
+            document.getElementById('lr-pct').innerHTML = data.within_250ms_pct >= 95
+                ? `<span class="tag tag-green">${data.within_250ms_pct}%</span>`
+                : `<span class="tag tag-red">${data.within_250ms_pct}%</span>`;
+            document.getElementById('lr-outliers').textContent = data.outliers_detected;
+
+            const dist = data.fail_distribution || {};
+            document.getElementById('lr-fail-dist').textContent = Object.keys(dist).length > 0
+                ? Object.entries(dist).map(([k, v]) => `${k}: ${v}`).join(', ') : 'Ninguno';
+
+            setVerdict('lr-verdict-result', data.errors === 0,
+                data.errors === 0 ? `${data.success}/${data.total_requests} exitosas` : `${data.errors} errores`);
+            setVerdict('lr-verdict-mask', true, 'Votacion y enmascaramiento funcionales');
+            setVerdict('lr-verdict-time', data.within_250ms_pct >= 95,
+                `${data.within_250ms_pct}% dentro de 250ms`);
+
+            document.getElementById('load-result').classList.add('show');
+            document.getElementById('load-result-mask').classList.add('show');
+            document.getElementById('load-result-time').classList.add('show');
+        }
+
         async function runLoadTest() {
             const u = Math.min(parseInt(usersInput.value) || 10, MAX_USERS);
             const l = Math.min(parseInt(loopsInput.value) || 10, MAX_LOOPS);
 
             const btn = document.getElementById('btn-load');
             const loading = document.getElementById('loading-load');
-            const result = document.getElementById('load-result');
-            const resultMask = document.getElementById('load-result-mask');
-            const resultTime = document.getElementById('load-result-time');
+            const progreso = document.getElementById('load-progress');
             btn.disabled = true;
             loading.style.display = 'block';
-            result.classList.remove('show');
-            resultMask.classList.remove('show');
-            resultTime.classList.remove('show');
-
-            const payload = {
-                users: u,
-                loops: l,
-                fail_mode: document.getElementById('fail-load').value,
-                monto: 1000,
-                tipo: 'general'
-            };
-
-            document.getElementById('load-progress').textContent =
-                `(${u * l} peticiones)...`;
+            ['load-result', 'load-result-mask', 'load-result-time']
+                .forEach(id => document.getElementById(id).classList.remove('show'));
+            progreso.textContent = `(${(u * l).toLocaleString()} peticiones)...`;
 
             try {
-                const resp = await fetch('/load-test', {
+                // La prueba corre en segundo plano: cada peticion HTTP dura
+                // milisegundos, asi que nunca choca con el limite de 30 s que
+                // aplican los proxies como el router de Heroku.
+                const inicio = await leerJson(await fetch('/load-test', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                const data = await resp.json();
+                    body: JSON.stringify({
+                        users: u, loops: l,
+                        fail_mode: document.getElementById('fail-load').value,
+                        monto: 1000, tipo: 'general'
+                    })
+                }));
+                if (inicio.error) { alert(`Error: ${inicio.error}`); return; }
 
-                if (data.error) {
-                    alert(`Error: ${data.error}`);
-                    return;
+                const t0 = Date.now();
+                while (true) {
+                    await new Promise(r => setTimeout(r, 700));
+                    const estado = await leerJson(await fetch(`/load-test/${inicio.trabajo_id}`));
+                    if (estado.error && estado.estado !== 'error') {
+                        alert(`Error: ${estado.error}`); return;
+                    }
+                    if (estado.estado === 'error') {
+                        alert(`La prueba fallo: ${estado.error}`); return;
+                    }
+                    const seg = ((Date.now() - t0) / 1000).toFixed(0);
+                    const pct = Math.round(estado.completadas / estado.total * 100);
+                    progreso.textContent =
+                        `${estado.completadas.toLocaleString()} / ${estado.total.toLocaleString()} (${pct}%) - ${seg}s`;
+                    if (estado.estado === 'terminado') {
+                        mostrarResultados(estado.resultado);
+                        break;
+                    }
                 }
-
-                document.getElementById('lr-total').textContent = data.total_requests;
-                document.getElementById('lr-success').innerHTML =
-                    `<span class="ok">${data.success}</span>`;
-                document.getElementById('lr-errors').innerHTML =
-                    data.errors > 0
-                        ? `<span class="fail">${data.errors}</span>`
-                        : '<span class="ok">0</span>';
-                document.getElementById('lr-time').textContent = `${(data.total_time_ms / 1000).toFixed(2)}s`;
-                document.getElementById('lr-rps').textContent = data.rps;
-
-                document.getElementById('lr-min').textContent = `${data.stats.min_ms} ms`;
-                document.getElementById('lr-max').textContent = `${data.stats.max_ms} ms`;
-                document.getElementById('lr-avg').textContent = `${data.stats.avg_ms} ms`;
-                document.getElementById('lr-median').textContent = `${data.stats.median_ms} ms`;
-
-                document.getElementById('lr-within').textContent = `${data.within_250ms} / ${data.success}`;
-                document.getElementById('lr-pct').innerHTML =
-                    data.within_250ms_pct >= 95
-                        ? `<span class="tag tag-green">${data.within_250ms_pct}%</span>`
-                        : `<span class="tag tag-red">${data.within_250ms_pct}%</span>`;
-                document.getElementById('lr-outliers').textContent = data.outliers_detected;
-
-                const dist = data.fail_distribution || {};
-                const distText = Object.keys(dist).length > 0
-                    ? Object.entries(dist).map(([k, v]) => `${k}: ${v}`).join(', ')
-                    : 'Ninguno';
-                document.getElementById('lr-fail-dist').textContent = distText;
-
-                setVerdict('lr-verdict-result', data.errors === 0,
-                    data.errors === 0 ? `${data.success}/${data.total_requests} exitosas` : `${data.errors} errores`);
-                setVerdict('lr-verdict-mask', true, 'Votacion y enmascaramiento funcionales');
-                setVerdict('lr-verdict-time', data.within_250ms_pct >= 95,
-                    `${data.within_250ms_pct}% dentro de 250ms`);
-
-                result.classList.add('show');
-                resultMask.classList.add('show');
-                resultTime.classList.add('show');
             } catch (err) {
                 alert('Error en la prueba: ' + err.message);
             } finally {

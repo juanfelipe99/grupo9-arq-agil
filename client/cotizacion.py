@@ -10,6 +10,8 @@ import os
 import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import statistics
+import threading
+import uuid
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -32,6 +34,10 @@ SESION.mount('http://', requests.adapters.HTTPAdapter(
 
 POOL = urllib3.PoolManager(num_pools=16, maxsize=160, retries=False, block=False)
 _JSON_HEADERS = {'Content-Type': 'application/json'}
+
+TRABAJOS = {}
+TRABAJOS_LOCK = threading.Lock()
+MAX_TRABAJOS = 5
 
 def post_json(url, obj, timeout=10):
     r = POOL.request('POST', url, body=json.dumps(obj).encode('utf-8'),
@@ -122,73 +128,99 @@ def cotizar():
 
 @app.route('/load-test', methods=['POST'])
 def load_test():
+    data = request.get_json(silent=True) or {}
+    users = data.get('users', 10)
+    loops = data.get('loops', 10)
+
+    MAX_USERS = 60
+    MAX_LOOPS = 500
+    if not isinstance(users, int) or not isinstance(loops, int) or users < 1 or loops < 1:
+        return jsonify({'error': 'users y loops deben ser enteros mayores que cero'}), 400
+    if users > MAX_USERS or loops > MAX_LOOPS:
+        return jsonify({
+            'error': f'Limite excedido: maximo {MAX_USERS} usuarios concurrentes '
+                     f'y {MAX_LOOPS} iteraciones por usuario. '
+                     f'Recibido: {users} usuarios, {loops} iteraciones.'
+        }), 400
+
+    trabajo_id = uuid.uuid4().hex[:12]
+    total = users * loops
+    with TRABAJOS_LOCK:
+        for viejo in list(TRABAJOS)[:-(MAX_TRABAJOS - 1)] if len(TRABAJOS) >= MAX_TRABAJOS else []:
+            TRABAJOS.pop(viejo, None)
+        TRABAJOS[trabajo_id] = {'estado': 'ejecutando', 'completadas': 0,
+                                'total': total, 'resultado': None, 'error': None}
+
+    hilo = threading.Thread(
+        target=ejecutar_prueba,
+        args=(trabajo_id, users, loops, data.get('fail_mode', ''),
+              data.get('monto', 1000), data.get('tipo', 'general')),
+        daemon=True)
+    hilo.start()
+
+    return jsonify({'trabajo_id': trabajo_id, 'total': total}), 202
+
+
+@app.route('/load-test/<trabajo_id>', methods=['GET'])
+def load_test_estado(trabajo_id):
+    with TRABAJOS_LOCK:
+        trabajo = TRABAJOS.get(trabajo_id)
+    if trabajo is None:
+        return jsonify({'error': 'Trabajo no encontrado'}), 404
+    return jsonify(trabajo)
+
+
+def ejecutar_prueba(trabajo_id, users, loops, fail_mode, monto, tipo):
+    """Corre la prueba de carga en segundo plano y publica el avance.
+
+    Se ejecuta fuera del ciclo de peticion HTTP porque una corrida grande
+    tarda mas de los 30 segundos que Heroku permite por peticion.
+    """
+    def avanzar():
+        with TRABAJOS_LOCK:
+            t = TRABAJOS.get(trabajo_id)
+            if t:
+                t['completadas'] += 1
+
     try:
-        data = request.get_json()
-        users = data.get('users', 10)
-        loops = data.get('loops', 10)
-        fail_mode = data.get('fail_mode', '')
-        monto = data.get('monto', 1000)
-        tipo = data.get('tipo', 'general')
-
-        MAX_USERS = 60
-        MAX_LOOPS = 500
-        if users > MAX_USERS or loops > MAX_LOOPS:
-            return jsonify({
-                'error': f'Limite excedido: maximo {MAX_USERS} usuarios concurrentes '
-                         f'y {MAX_LOOPS} iteraciones por usuario. '
-                         f'Recibido: {users} usuarios, {loops} iteraciones.'
-            }), 400
-
         total_requests = users * loops
-
         results = []
-        errors = 0
         start_all = time.perf_counter()
 
-        def single_request(idx):
+        def single_request(_):
             start = time.perf_counter()
             try:
                 current_fail = resolve_fail_rating(fail_mode)
-                payload = {
-                    'monto': monto,
-                    'tipo': tipo,
-                    'fail_rating': current_fail or ''
-                }
+                payload = {'monto': monto, 'tipo': tipo, 'fail_rating': current_fail or ''}
                 resp = SESION.post(COTIZAR_URL, json=payload, timeout=30)
                 elapsed = round((time.perf_counter() - start) * 1000, 2)
-                if resp.status_code == 200:
-                    body = resp.json()
-                    return {
-                        'ok': True,
-                        'time_ms': body.get('tiempo_total_ms', elapsed),
-                        'within_limit': body.get('dentro_limite_250ms', False),
-                        'outlier': body.get('outlier_detectado', False),
-                        'rating_fallo': body.get('rating_fallo'),
-                        'etapas': body.get('etapas_ms')
-                    }
-                else:
+                if resp.status_code != 200:
                     return {'ok': False, 'time_ms': elapsed, 'error': f'HTTP {resp.status_code}'}
+                body = resp.json()
+                return {
+                    'ok': True,
+                    'time_ms': body.get('tiempo_total_ms', elapsed),
+                    'within_limit': body.get('dentro_limite_250ms', False),
+                    'outlier': body.get('outlier_detectado', False),
+                    'rating_fallo': body.get('rating_fallo'),
+                    'etapas': body.get('etapas_ms')
+                }
             except Exception as e:
                 elapsed = round((time.perf_counter() - start) * 1000, 2)
                 return {'ok': False, 'time_ms': elapsed, 'error': str(e)}
+            finally:
+                avanzar()
 
         with ThreadPoolExecutor(max_workers=users) as executor:
-            futures = []
-            for _ in range(total_requests):
-                futures.append(executor.submit(single_request, 0))
-
-            for f in as_completed(futures):
-                r = f.result()
-                results.append(r)
-                if not r['ok']:
-                    errors += 1
+            for f in as_completed([executor.submit(single_request, 0)
+                                   for _ in range(total_requests)]):
+                results.append(f.result())
 
         total_time = round((time.perf_counter() - start_all) * 1000, 2)
-        times = [r['time_ms'] for r in results]
+        times = sorted(r['time_ms'] for r in results)
         ok_results = [r for r in results if r['ok']]
-
+        errors = len(results) - len(ok_results)
         within_limit_count = sum(1 for r in ok_results if r['within_limit'])
-        outlier_count = sum(1 for r in ok_results if r.get('outlier', False))
 
         etapas_mediana = {}
         muestras_etapas = [r['etapas'] for r in ok_results if r.get('etapas')]
@@ -204,31 +236,39 @@ def load_test():
             if rf:
                 fail_counts[rf] = fail_counts.get(rf, 0) + 1
 
-        response = {
+        resultado = {
             'total_requests': total_requests,
             'users': users,
             'loops': loops,
             'errors': errors,
-            'success': total_requests - errors,
+            'success': len(ok_results),
             'total_time_ms': total_time,
             'stats': {
-                'min_ms': round(min(times), 2) if times else 0,
-                'max_ms': round(max(times), 2) if times else 0,
+                'min_ms': round(times[0], 2) if times else 0,
+                'max_ms': round(times[-1], 2) if times else 0,
                 'avg_ms': round(statistics.mean(times), 2) if times else 0,
                 'median_ms': round(statistics.median(times), 2) if times else 0,
             },
             'etapas_mediana_ms': etapas_mediana,
             'within_250ms': within_limit_count,
-            'within_250ms_pct': round(within_limit_count / (total_requests - errors) * 100, 2) if (total_requests - errors) > 0 else 0,
-            'outliers_detected': outlier_count,
+            'within_250ms_pct': round(within_limit_count / len(ok_results) * 100, 2) if ok_results else 0,
+            'outliers_detected': sum(1 for r in ok_results if r.get('outlier', False)),
             'fail_distribution': fail_counts,
-            'rps': round((total_requests - errors) / (total_time / 1000), 2) if total_time > 0 else 0
+            'rps': round(len(ok_results) / (total_time / 1000), 2) if total_time else 0
         }
+        with TRABAJOS_LOCK:
+            t = TRABAJOS.get(trabajo_id)
+            if t:
+                t['resultado'] = resultado
+                t['estado'] = 'terminado'
+    except Exception as e:
+        app.logger.exception('Error ejecutando la prueba de carga')
+        with TRABAJOS_LOCK:
+            t = TRABAJOS.get(trabajo_id)
+            if t:
+                t['estado'] = 'error'
+                t['error'] = str(e)
 
-        return jsonify(response)
-    except Exception:
-        app.logger.exception('Error procesando /load-test')
-        return jsonify({'error': 'Error interno ejecutando la prueba de carga'}), 500
 
 @app.route('/health', methods=['GET'])
 def health():
