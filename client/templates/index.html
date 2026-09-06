@@ -78,19 +78,19 @@
                 </div>
                 <div>
                     <label for="loops">Iteraciones por usuario</label>
-                    <input type="number" id="loops" value="10" min="1" max="600">
+                    <input type="number" id="loops" value="10" min="1" max="500">
                 </div>
             </div>
             <label style="display:flex;align-items:center;gap:0;">
-                <span>Total peticiones:&nbsp;<strong id="total-req">100</strong>&nbsp;/&nbsp;<span style="color:#94a3b8">30.000</span></span>
+                <span>Total peticiones:&nbsp;<strong id="total-req">100</strong>&nbsp;/&nbsp;<span style="color:#94a3b8">25.000</span></span>
                 <button type="button" class="info-icon" onclick="toggleTooltip(event)" title="Limites y referencias">i</button>
             </label>
             <div id="info-tooltip" class="info-tooltip">
                 <span class="close-tip" onclick="closeTooltip()">✕</span>
-                <h4>Limites: 50 usuarios, 600 iteraciones</h4>
-                En la corrida completa, 50 x 600 = 30.000 peticiones con fallo
+                <h4>Limites: 50 usuarios, 500 iteraciones</h4>
+                En la corrida completa, 50 x 500 = 25.000 peticiones con fallo
                 aleatorio, el <strong>100% quedo por debajo de 250 ms</strong> sin
-                ningun error.<br><br>
+                ningun error, con una mediana de 27 ms y un maximo de 156 ms.<br><br>
                 El volumen escala bien y el limite real es la <strong>concurrencia</strong>. Por encima de ~70 usuarios simultaneos el tiempo de respuesta deja de cumplir los 250 ms, por eso el tope es 50.
             </div>
             <div class="total-bar">
@@ -224,7 +224,7 @@
 
     <script>
         const MAX_USERS = 50;
-        const MAX_LOOPS = 600;
+        const MAX_LOOPS = 500;
         const MAX_TOTAL = MAX_USERS * MAX_LOOPS;
         const usersInput = document.getElementById('users');
         const loopsInput = document.getElementById('loops');
