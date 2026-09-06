@@ -84,7 +84,6 @@
             <label style="display:flex;align-items:center;gap:0;">
                 <span>Total peticiones:&nbsp;<strong id="total-req">100</strong>&nbsp;/&nbsp;<span style="color:#94a3b8">30.000</span></span>
                 <button type="button" class="info-icon" onclick="toggleTooltip(event)" title="Limites y referencias">i</button>
-                <span id="total-warning" style="display:none;color:#f59e0b;font-size:0.8rem;margin-left:8px;"></span>
             </label>
             <div id="info-tooltip" class="info-tooltip">
                 <span class="close-tip" onclick="closeTooltip()">✕</span>
@@ -246,9 +245,6 @@
 
             const total = u * l;
 
-            // Escala logaritmica: el rango util va de decenas a decenas de
-            // miles de peticiones, y en escala lineal las corridas pequenas
-            // quedaban pegadas al cero.
             const pct = total <= 1 ? 0
                       : Math.min(100, Math.log(total) / Math.log(MAX_TOTAL) * 100);
             const color = total < 10000 ? '#22c55e'
@@ -259,13 +255,6 @@
             document.getElementById('total-bar-fill').style.width = pct + '%';
             document.getElementById('total-bar-fill').style.background = color;
 
-            const aviso = document.getElementById('total-warning');
-            if (total >= 20000) {
-                aviso.textContent = `— ~${Math.round(total / 340)} s estimados`;
-                aviso.style.display = 'inline';
-            } else {
-                aviso.style.display = 'none';
-            }
             document.getElementById('btn-load').disabled = false;
         }
 
@@ -309,8 +298,6 @@
         }
 
         async function leerJson(resp) {
-            // El servidor siempre responde JSON. Si llega HTML es que algo
-            // intermedio corto la peticion, tipicamente un timeout del router.
             const texto = await resp.text();
             try {
                 return JSON.parse(texto);
@@ -370,9 +357,6 @@
             progreso.textContent = `(${(u * l).toLocaleString()} peticiones)...`;
 
             try {
-                // La prueba corre en segundo plano: cada peticion HTTP dura
-                // milisegundos, asi que nunca choca con el limite de 30 s que
-                // aplican los proxies como el router de Heroku.
                 const inicio = await leerJson(await fetch('/load-test', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -386,7 +370,7 @@
 
                 const t0 = Date.now();
                 while (true) {
-                    await new Promise(r => setTimeout(r, 700));
+                    await new Promise(r => setTimeout(r, 1000));
                     const estado = await leerJson(await fetch(`/load-test/${inicio.trabajo_id}`));
                     if (estado.error && estado.estado !== 'error') {
                         alert(`Error: ${estado.error}`); return;

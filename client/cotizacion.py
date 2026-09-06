@@ -24,7 +24,7 @@ app = Flask(__name__, template_folder=os.path.join(PROJECT_ROOT, 'client', 'temp
 PORT = int(os.environ.get('PORT', 5000))
 COTIZAR_URL = f'http://127.0.0.1:{PORT}/cotizar'
 
-COTIZACION_THREADS = int(os.environ.get('COTIZACION_THREADS', 64))
+COTIZACION_THREADS = int(os.environ.get('COTIZACION_THREADS', 24))
 RATING_EXECUTOR = ThreadPoolExecutor(
     max_workers=COTIZACION_THREADS * len(RATING_INSTANCES))
 
@@ -167,36 +167,37 @@ def load_test_estado(trabajo_id):
         trabajo = TRABAJOS.get(trabajo_id)
     if trabajo is None:
         return jsonify({'error': 'Trabajo no encontrado'}), 404
-    return jsonify(trabajo)
+    resultados = trabajo.get('_results')
+    return jsonify({
+        'estado': trabajo['estado'],
+        'completadas': len(resultados) if resultados is not None else trabajo['completadas'],
+        'total': trabajo['total'],
+        'resultado': trabajo['resultado'],
+        'error': trabajo['error'],
+    })
 
 
 def ejecutar_prueba(trabajo_id, users, loops, fail_mode, monto, tipo):
-    """Corre la prueba de carga en segundo plano y publica el avance.
-
-    Se ejecuta fuera del ciclo de peticion HTTP porque una corrida grande
-    tarda mas de los 30 segundos que Heroku permite por peticion.
-    """
-    def avanzar():
-        with TRABAJOS_LOCK:
-            t = TRABAJOS.get(trabajo_id)
-            if t:
-                t['completadas'] += 1
-
     try:
         total_requests = users * loops
         results = []
+        with TRABAJOS_LOCK:
+            t = TRABAJOS.get(trabajo_id)
+            if t is not None:
+                t['_results'] = results
         start_all = time.perf_counter()
 
         def single_request(_):
             start = time.perf_counter()
             try:
                 current_fail = resolve_fail_rating(fail_mode)
-                payload = {'monto': monto, 'tipo': tipo, 'fail_rating': current_fail or ''}
-                resp = SESION.post(COTIZAR_URL, json=payload, timeout=30)
+                estado, body = post_json(
+                    COTIZAR_URL,
+                    {'monto': monto, 'tipo': tipo, 'fail_rating': current_fail or ''},
+                    timeout=30)
                 elapsed = round((time.perf_counter() - start) * 1000, 2)
-                if resp.status_code != 200:
-                    return {'ok': False, 'time_ms': elapsed, 'error': f'HTTP {resp.status_code}'}
-                body = resp.json()
+                if body is None:
+                    return {'ok': False, 'time_ms': elapsed, 'error': f'HTTP {estado}'}
                 return {
                     'ok': True,
                     'time_ms': body.get('tiempo_total_ms', elapsed),
@@ -208,13 +209,10 @@ def ejecutar_prueba(trabajo_id, users, loops, fail_mode, monto, tipo):
             except Exception as e:
                 elapsed = round((time.perf_counter() - start) * 1000, 2)
                 return {'ok': False, 'time_ms': elapsed, 'error': str(e)}
-            finally:
-                avanzar()
 
         with ThreadPoolExecutor(max_workers=users) as executor:
-            for f in as_completed([executor.submit(single_request, 0)
-                                   for _ in range(total_requests)]):
-                results.append(f.result())
+            for r in executor.map(single_request, range(total_requests)):
+                results.append(r)
 
         total_time = round((time.perf_counter() - start_all) * 1000, 2)
         times = sorted(r['time_ms'] for r in results)
