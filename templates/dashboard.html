@@ -712,6 +712,16 @@
             <div class="navbar-actions">
             </div>
             <span class="badge">Administrador</span>
+            <div class="usuario-actual" id="usuarioActual" style="display:none;
+                 align-items:center; gap:10px; margin-left:18px; padding-left:18px;
+                 border-left:1px solid #2d3b5a;">
+                <span id="usuarioNombre" style="color:#e6f1ff; font-size:0.85rem;
+                      font-weight:600;"></span>
+                <button onclick="cerrarSesion()" title="Cerrar sesion en el servidor"
+                        style="background:#1f2a44; color:#ff6b81; border:1px solid #2d3b5a;
+                               border-radius:6px; padding:5px 12px; cursor:pointer;
+                               font-size:0.8rem; white-space:nowrap;">Cerrar sesion</button>
+            </div>
         </div>
     </nav>
 
@@ -721,7 +731,6 @@
             <div class="run-all-header">
                 <h3>Parametros iniciales</h3>
                 <div class="header-actions">
-                    <span class="progress-label" id="qpmHint">delay ≈ 60 / qpm</span>
                     <button class="btn btn-green" id="btnDefaults" onclick="loadExperimentConfig()">Restablecer</button>
                 </div>
             </div>
@@ -735,9 +744,9 @@
                             <div class="param-hint" id="hint-baseline"></div>
                         </div>
                         <div class="param-field">
-                            <label for="in-threshold">Umbral anomalia (cons/min)</label>
-                            <input type="number" id="in-threshold" min="1" max="10000" value="150">
-                            <div class="param-hint" id="hint-threshold">3x baseline → anomala</div>
+                            <label>Umbral que resulta</label>
+                            <div class="detail-value" id="umbral-derivado">--</div>
+                            <div class="param-hint" id="hint-threshold"></div>
                         </div>
                     </div>
                 </div>
@@ -772,7 +781,7 @@
                             <h5>Gradual</h5>
                             <div class="param-field">
                                 <label for="in-gradual-q">Consultas</label>
-                                <input type="number" id="in-gradual-q" min="1" max="10000" value="151">
+                                <input type="number" id="in-gradual-q" min="1" max="10000" value="200">
                             </div>
                             <div class="param-field">
                                 <label for="in-gradual-d">Delay inicial (s)</label>
@@ -782,7 +791,7 @@
                             <div class="param-field">
                                 <label for="in-gradual-decay">Decaimiento</label>
                                 <input type="number" id="in-gradual-decay" min="0.5" max="1" step="0.001" value="0.95">
-                                <div class="param-hint">delay × factor / consulta</div>
+                                <div class="param-hint" id="hint-decay">cada consulta espera 5% menos</div>
                             </div>
                         </div>
                     </div>
@@ -818,7 +827,7 @@
                     <div class="scenario-card-icon" id="icon-gradual">&#9201;</div>
                     <div class="scenario-card-title">Escala Gradual</div>
                     <div class="scenario-card-status" id="status-gradual">Pendiente</div>
-                    <div class="scenario-card-detail" id="detail-line-gradual">151 consultas / delay decreciente</div>
+                    <div class="scenario-card-detail" id="detail-line-gradual">200 consultas / delay decreciente</div>
                 </div>
             </div>
             <div class="verdict-banner" id="verdictBanner"></div>
@@ -832,6 +841,8 @@
                 <div class="detail-item"><span class="detail-label">Fallidas</span><span class="detail-value red" id="n-failed">--</span></div>
                 <div class="detail-item"><span class="detail-label">Duracion</span><span class="detail-value" id="n-duration">--</span></div>
                 <div class="detail-item"><span class="detail-label">Deteccion</span><span class="detail-value" id="n-detection">--</span></div>
+                <div class="detail-item"><span class="detail-label">Revocacion</span><span class="detail-value" id="n-revocation">--</span></div>
+                <div class="detail-item"><span class="detail-label">Total</span><span class="detail-value" id="n-total">--</span></div>
                 <div class="detail-item"><span class="detail-label">Anomalia</span><span class="detail-value" id="n-anomaly">--</span></div>
                 <div class="detail-item"><span class="detail-label">Cumple &lt;1s</span><span class="detail-value" id="n-compliance">--</span></div>
             </div>
@@ -845,6 +856,8 @@
                 <div class="detail-item"><span class="detail-label">Fallidas</span><span class="detail-value red" id="m-failed">--</span></div>
                 <div class="detail-item"><span class="detail-label">Duracion</span><span class="detail-value" id="m-duration">--</span></div>
                 <div class="detail-item"><span class="detail-label">Deteccion</span><span class="detail-value" id="m-detection">--</span></div>
+                <div class="detail-item"><span class="detail-label">Revocacion</span><span class="detail-value" id="m-revocation">--</span></div>
+                <div class="detail-item"><span class="detail-label">Total</span><span class="detail-value" id="m-total">--</span></div>
                 <div class="detail-item"><span class="detail-label">Anomalia</span><span class="detail-value" id="m-anomaly">--</span></div>
                 <div class="detail-item"><span class="detail-label">Cumple &lt;1s</span><span class="detail-value" id="m-compliance">--</span></div>
             </div>
@@ -858,6 +871,8 @@
                 <div class="detail-item"><span class="detail-label">Fallidas</span><span class="detail-value red" id="g-failed">--</span></div>
                 <div class="detail-item"><span class="detail-label">Duracion</span><span class="detail-value" id="g-duration">--</span></div>
                 <div class="detail-item"><span class="detail-label">Deteccion</span><span class="detail-value" id="g-detection">--</span></div>
+                <div class="detail-item"><span class="detail-label">Revocacion</span><span class="detail-value" id="g-revocation">--</span></div>
+                <div class="detail-item"><span class="detail-label">Total</span><span class="detail-value" id="g-total">--</span></div>
                 <div class="detail-item"><span class="detail-label">Anomalia</span><span class="detail-value" id="g-anomaly">--</span></div>
                 <div class="detail-item"><span class="detail-label">Cumple &lt;1s</span><span class="detail-value" id="g-compliance">--</span></div>
             </div>
@@ -865,27 +880,27 @@
 
         <div class="charts-grid">
             <div class="chart-container">
-                <h4>Tiempo de Deteccion por Escenario</h4>
+                <h4>Reaccion contra el limite de 1 segundo</h4>
                 <div class="chart-wrapper">
                     <canvas id="detectionTimeChart"></canvas>
                 </div>
             </div>
             <div class="chart-container">
-                <h4>Consultas Procesadas</h4>
+                <h4>Fuga contenida</h4>
                 <div class="chart-wrapper">
                     <canvas id="queriesChart"></canvas>
                 </div>
             </div>
             <div class="chart-container">
-                <h4>Resultado por Escenario</h4>
+                <h4>Tasa observada contra el umbral</h4>
                 <div class="chart-wrapper">
-                    <canvas id="scenarioResultChart"></canvas>
+                    <canvas id="rateChart"></canvas>
                 </div>
             </div>
             <div class="chart-container">
-                <h4>Duracion Total</h4>
+                <h4>Costo de vigilar: latencia de las cotizaciones</h4>
                 <div class="chart-wrapper">
-                    <canvas id="durationChart"></canvas>
+                    <canvas id="latencyChart"></canvas>
                 </div>
             </div>
         </div>
@@ -899,8 +914,26 @@
         let SCENARIOS = [
             { key: 'normal', label: 'Comportamiento Normal', queries: 50 },
             { key: 'massive', label: 'Extraccion Masiva', queries: 200 },
-            { key: 'gradual', label: 'Escala Gradual', queries: 151 }
+            { key: 'gradual', label: 'Escala Gradual', queries: 200 }
         ];
+
+        // El ASR se enuncia en segundos y asi se muestra todo. Comparar
+        // 0.047 s contra 1 s se lee solo, 47 ms contra 1000 ms no.
+        function seg(ms) {
+            const v = (ms || 0) / 1000;
+            if (!v) return '0 s';
+            if (v >= 10) return v.toFixed(1) + ' s';
+            if (v >= 1) return v.toFixed(2) + ' s';
+            return v.toFixed(3) + ' s';
+        }
+
+        function aSeg(ms) { return Math.round((ms || 0)) / 1000; }
+
+        // Veces el habito que hay que superar para marcarse, y cuanto puede
+        // alejarse ese habito del inicial. Los fija el Monitor y aqui solo
+        // sirven para las pistas.
+        let FACTOR = 3;
+        const DERIVA = 2;
 
         function val(id, fallback) {
             const el = document.getElementById(id);
@@ -912,34 +945,44 @@
         function readFormState() {
             return {
                 baseline_qpm: Math.round(val('in-baseline', 50)),
-                threshold_qpm: Math.round(val('in-threshold', 150)),
                 scenarios: {
                     normal: { num_queries: Math.round(val('in-normal-q', 50)), delay: val('in-normal-d', 1.5) },
                     massive: { num_queries: Math.round(val('in-massive-q', 200)), delay: val('in-massive-d', 0.01) },
-                    gradual: { num_queries: Math.round(val('in-gradual-q', 151)), delay: val('in-gradual-d', 0.1), decay: val('in-gradual-decay', 0.95) }
+                    gradual: { num_queries: Math.round(val('in-gradual-q', 200)), delay: val('in-gradual-d', 0.1), decay: val('in-gradual-decay', 0.95) }
                 }
             };
         }
 
         function qpmHint(delay) {
             if (!delay || delay <= 0) return '';
-            return '≈ ' + Math.round(60 / delay) + ' cons/min';
+            return 'esperar ' + delay + 's entre consultas = ' + Math.round(60 / delay) + ' por minuto';
+        }
+
+        // Un escenario con resultado en pantalla queda congelado: editar el
+        // formulario configura la proxima corrida, no reescribe la anterior.
+        function tieneResultado(key) {
+            const card = document.getElementById('card-' + key);
+            return !!card && (card.classList.contains('done') || card.classList.contains('fail'));
         }
 
         function refreshHints() {
             const b = val('in-baseline', 50);
-            document.getElementById('hint-baseline').textContent = b > 0 ? 'delay ref: ' + (60 / b).toFixed(2) + 's' : '';
+            document.getElementById('hint-baseline').textContent =
+                b > 0 ? 'este ritmo equivale a esperar ' + (60 / b).toFixed(2) + 's entre consultas' : '';
             const nd = val('in-normal-d', 1.5), md = val('in-massive-d', 0.01), gd = val('in-gradual-d', 0.1);
             document.getElementById('hint-normal').textContent = qpmHint(nd);
             document.getElementById('hint-massive').textContent = qpmHint(md);
-            document.getElementById('hint-gradual').textContent = qpmHint(gd) + ' decreciente';
-            const nq = Math.round(val('in-normal-q', 50)), mq = Math.round(val('in-massive-q', 200)), gq = Math.round(val('in-gradual-q', 151));
+            document.getElementById('hint-gradual').textContent = qpmHint(gd) + ' al inicio, luego mas rapido';
+            const dec = val('in-gradual-decay', 0.95);
+            document.getElementById('hint-decay').textContent =
+                'cada consulta espera ' + Math.round((1 - dec) * 100) + '% menos que la anterior';
+            const nq = Math.round(val('in-normal-q', 50)), mq = Math.round(val('in-massive-q', 200)), gq = Math.round(val('in-gradual-q', 200));
             const nl = document.getElementById('detail-line-normal');
             const ml = document.getElementById('detail-line-massive');
             const gl = document.getElementById('detail-line-gradual');
-            if (nl) nl.textContent = nq + ' consultas / ' + nd + 's delay';
-            if (ml) ml.textContent = mq + ' consultas / ' + md + 's delay';
-            if (gl) gl.textContent = gq + ' consultas / delay decreciente';
+            if (nl && !tieneResultado('normal')) nl.textContent = nq + ' consultas / ' + nd + 's delay';
+            if (ml && !tieneResultado('massive')) ml.textContent = mq + ' consultas / ' + md + 's delay';
+            if (gl && !tieneResultado('gradual')) gl.textContent = gq + ' consultas / delay decreciente';
         }
 
         const PREFIX = { normal: 'n', massive: 'm', gradual: 'g' };
@@ -952,8 +995,11 @@
                 { key: 'massive', label: 'Extraccion Masiva', queries: state.scenarios.massive.num_queries },
                 { key: 'gradual', label: 'Escala Gradual', queries: state.scenarios.gradual.num_queries }
             ];
-            // Denominador esperado en vivo en los paneles (conserva numerador del ultimo run o --)
+            // Denominador esperado en vivo, solo donde todavia no hay resultado:
+            // un escenario ya corrido muestra lo que midio, no lo que diga el
+            // formulario despues.
             for (const [key, p] of Object.entries(PREFIX)) {
+                if (tieneResultado(key)) continue;
                 const cell = document.getElementById(p + '-queries');
                 if (!cell) continue;
                 const current = (cell.textContent || '').split('/');
@@ -961,22 +1007,28 @@
                 cell.textContent = num + '/' + state.scenarios[key].num_queries;
             }
             // Ratio umbral/baseline en vivo
+            // El umbral no se escribe: es el habito por el factor. Lo unico
+            // acotado es cuanto puede moverse el habito.
+            const derivado = document.getElementById('umbral-derivado');
+            if (derivado && state.baseline_qpm > 0) {
+                derivado.textContent = Math.round(state.baseline_qpm * FACTOR) + ' cons/min';
+            }
             const ratioEl = document.getElementById('hint-threshold');
             if (ratioEl && state.baseline_qpm > 0) {
-                ratioEl.textContent = (state.threshold_qpm / state.baseline_qpm).toFixed(1) + 'x baseline → anomala';
+                ratioEl.textContent = FACTOR + 'x el habito; con el tiempo puede moverse entre '
+                    + Math.round(state.baseline_qpm * FACTOR / DERIVA)
+                    + ' y ' + Math.round(state.baseline_qpm * FACTOR * DERIVA);
             }
         }
 
         function collectParams() {
-            const threshold = Math.round(val('in-threshold', 150));
+
             const baseline = Math.round(val('in-baseline', 50));
-            if (threshold < 1 || threshold > 10000) { showToast('Umbral fuera de rango (1-10000)', 'error'); return null; }
             if (baseline < 1 || baseline > 10000) { showToast('Baseline fuera de rango (1-10000)', 'error'); return null; }
-            if (threshold <= baseline) { showToast('El umbral debe ser mayor que el baseline', 'error'); return null; }
             const scenarios = {
                 normal: { num_queries: Math.round(val('in-normal-q', 50)), delay: val('in-normal-d', 1.5) },
                 massive: { num_queries: Math.round(val('in-massive-q', 200)), delay: val('in-massive-d', 0.01) },
-                gradual: { num_queries: Math.round(val('in-gradual-q', 151)), delay: val('in-gradual-d', 0.1), decay: val('in-gradual-decay', 0.95) }
+                gradual: { num_queries: Math.round(val('in-gradual-q', 200)), delay: val('in-gradual-d', 0.1), decay: val('in-gradual-decay', 0.95) }
             };
             for (const [k, p] of Object.entries(scenarios)) {
                 if (p.num_queries < 1 || p.num_queries > 10000 || p.delay < 0.001 || p.delay > 60) {
@@ -988,7 +1040,7 @@
                 showToast('Decaimiento debe estar entre 0.5 y 1', 'error');
                 return null;
             }
-            return { baseline_qpm: baseline, threshold_qpm: threshold, scenarios };
+            return { baseline_qpm: baseline, scenarios };
         }
 
         async function loadExperimentConfig() {
@@ -997,13 +1049,45 @@
                 if (!res.ok) return;
                 const cfg = await res.json();
                 document.getElementById('in-baseline').value = cfg.baseline_qpm ?? 50;
-                document.getElementById('in-threshold').value = cfg.threshold_qpm ?? 150;
+                FACTOR = cfg.factor || FACTOR;
                 const sc = cfg.scenarios || {};
                 if (sc.normal) { document.getElementById('in-normal-q').value = sc.normal.num_queries; document.getElementById('in-normal-d').value = sc.normal.delay; }
                 if (sc.massive) { document.getElementById('in-massive-q').value = sc.massive.num_queries; document.getElementById('in-massive-d').value = sc.massive.delay; }
                 if (sc.gradual) { document.getElementById('in-gradual-q').value = sc.gradual.num_queries; document.getElementById('in-gradual-d').value = sc.gradual.delay; document.getElementById('in-gradual-decay').value = sc.gradual.decay ?? 0.95; }
                 refreshLive();
             } catch (err) { /* usa defaults del HTML */ }
+        }
+
+        function sesionGuardada() {
+            try { return JSON.parse(localStorage.getItem('h710_sesion') || 'null'); }
+            catch (err) { return null; }
+        }
+
+        function pintarUsuario() {
+            const s = sesionGuardada();
+            const caja = document.getElementById('usuarioActual');
+            if (!s || !s.session_id) { caja.style.display = 'none'; return; }
+            document.getElementById('usuarioNombre').textContent =
+                (s.nombre || s.email || 'Administrador');
+            caja.style.display = 'flex';
+        }
+
+        async function cerrarSesion() {
+            const s = sesionGuardada();
+            if (s && s.session_id) {
+                try {
+                    // Se cierra tambien en el servidor: la sesion deja de estar
+                    // activa, asi que no sirve aunque alguien guarde el id.
+                    await fetch('/api/auth/logout', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ session_id: s.session_id })
+                    });
+                } catch (err) { /* se cierra igual en el navegador */ }
+            }
+            try { localStorage.removeItem('h710_sesion'); } catch (err) {}
+            showToast('Sesion cerrada', 'success');
+            setTimeout(() => { window.location.href = '/'; }, 700);
         }
 
         function showToast(message, type) {
@@ -1017,6 +1101,7 @@
             const card = document.getElementById('card-' + key);
             const icon = document.getElementById('icon-' + key);
             const status = document.getElementById('status-' + key);
+            if (!card || !icon || !status) return;
             card.classList.remove('active', 'done', 'fail');
             icon.classList.remove('pulse');
             if (state === 'active') { card.classList.add('active'); icon.innerHTML = '&#9679;'; icon.classList.add('pulse'); status.textContent = 'En curso...'; status.style.color = '#2563eb'; }
@@ -1053,25 +1138,12 @@
         function clearScenarioPanel(key) {
             const p = PREFIX[key];
             if (!p) return;
-            ['queries', 'success', 'failed', 'duration', 'detection', 'anomaly', 'compliance'].forEach(f => {
+            ['queries', 'success', 'failed', 'duration', 'detection', 'revocation', 'total', 'anomaly', 'compliance'].forEach(f => {
                 const cell = document.getElementById(p + '-' + f);
                 if (cell) { cell.textContent = '--'; cell.className = 'detail-value'; }
             });
             const detailEl = document.getElementById('detail-' + key);
             if (detailEl) detailEl.classList.remove('cumple', 'nocumple');
-        }
-
-        function resetCharts() {
-            if (!detectionTimeChart) return;
-            detectionTimeChart.data.datasets[0].data = [0, 0, 0];
-            detectionTimeChart.update();
-            queriesChart.data.datasets[0].data = [0, 0, 0];
-            queriesChart.data.datasets[1].data = [0, 0, 0];
-            queriesChart.update();
-            durationChart.data.datasets[0].data = [0, 0, 0];
-            durationChart.update();
-            scenarioResultChart.data.datasets[0].data = [0, 0, 3];
-            scenarioResultChart.update();
         }
 
         function clearExecutionUI() {
@@ -1108,7 +1180,7 @@
                 const res = await fetch('/api/experiment/run-all', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(params) });
                 if (res.ok) {
                     const started = await res.json().catch(() => ({}));
-                    showToast('Experimentos iniciados - umbral ' + (started.threshold_qpm || params.threshold_qpm) + '/min', 'success');
+                    showToast('Experimentos iniciados - umbral ' + (started.threshold_qpm || '--') + '/min', 'success');
                 } else {
                     showToast('Error al iniciar experimentos', 'error');
                     restoreConfigLines();
@@ -1154,8 +1226,20 @@
             document.getElementById(p + '-queries').textContent = queries + '/' + expected;
             document.getElementById(p + '-success').textContent = data.successful || 0;
             document.getElementById(p + '-failed').textContent = data.failed || 0;
-            document.getElementById(p + '-duration').textContent = (data.duration_ms || 0) + ' ms';
-            document.getElementById(p + '-detection').textContent = (data.detection_time_ms || 0) + ' ms';
+            document.getElementById(p + '-duration').textContent = seg(data.duration_ms);
+            // Los dos tramos son consecutivos y su suma es lo que acota el ASR.
+            const dms = data.detection_time_ms || 0;
+            const rms = data.revocation_time_ms || 0;
+            const tms = data.total_time_ms || 0;
+            const det = document.getElementById(p + '-detection');
+            const rev = document.getElementById(p + '-revocation');
+            const tot = document.getElementById(p + '-total');
+            det.textContent = dms ? seg(dms) : '--';
+            det.title = 'Desde que se supera el umbral hasta que la sesion queda marcada como anomala.';
+            rev.textContent = rms ? seg(rms) : '--';
+            rev.title = 'Desde que la sesion queda marcada hasta que el Autorizador confirma que quedo sin permisos.';
+            tot.textContent = tms ? seg(tms) : '--';
+            tot.title = 'Suma de los dos tramos: es el tiempo que el ASR exige por debajo de 1 segundo.';
             const anomalyEl = document.getElementById(p + '-anomaly');
             if (data.is_anomalous !== undefined) {
                 anomalyEl.textContent = data.is_anomalous ? 'Si' : 'No';
@@ -1173,7 +1257,8 @@
             }
         }
 
-        let detectionTimeChart, queriesChart, scenarioResultChart, durationChart;
+        let detectionTimeChart, queriesChart, rateChart, latencyChart;
+        const LIMITE_ASR_S = 1;
 
         function initCharts() {
             const defaults = {
@@ -1184,47 +1269,153 @@
                     y: { ticks: { color: '#8892b0' }, grid: { color: 'rgba(136,146,176,0.1)' } }
                 }
             };
+            // Linea de presupuesto: sin ella el eje se autoescala y 0.05 s
+            // parece enorme, cuando el punto es que sobra margen.
+            const lineaLimite = {
+                type: 'line', label: 'Limite ASR (1 s)', data: [1, 1, 1],
+                borderColor: '#ffa502', borderWidth: 2, borderDash: [6, 4],
+                pointRadius: 0, fill: false
+            };
+
             detectionTimeChart = new Chart(document.getElementById('detectionTimeChart'), {
                 type: 'bar',
-                data: { labels: ['Normal','Masiva','Gradual'], datasets: [{ label: 'Deteccion (ms)', data: [0,0,0], backgroundColor: ['#00d4aa','#2563eb','#ff4757'], borderRadius: 6 }] },
-                options: { ...defaults }
+                data: {
+                    labels: ['Normal', 'Masiva', 'Gradual'],
+                    datasets: [
+                        { label: 'Deteccion (s)', data: [0, 0, 0], backgroundColor: '#2563eb', borderRadius: 4 },
+                        { label: 'Revocacion (s)', data: [0, 0, 0], backgroundColor: '#00d4aa', borderRadius: 4 },
+                        lineaLimite
+                    ]
+                },
+                options: {
+                    ...defaults,
+                    scales: {
+                        x: { ...defaults.scales.x, stacked: true },
+                        y: {
+                            ...defaults.scales.y, stacked: true,
+                            suggestedMax: 1.1,
+                            title: { display: true, text: 'segundos', color: '#8892b0' }
+                        }
+                    }
+                }
             });
+
             queriesChart = new Chart(document.getElementById('queriesChart'), {
                 type: 'bar',
-                data: { labels: ['Normal','Masiva','Gradual'], datasets: [
-                    { label: 'Exitosas', data: [0,0,0], backgroundColor: '#00d4aa', borderRadius: 6 },
-                    { label: 'Fallidas', data: [0,0,0], backgroundColor: '#ff4757', borderRadius: 6 }
-                ]},
-                options: { ...defaults }
+                data: {
+                    labels: ['Normal', 'Masiva', 'Gradual'],
+                    datasets: [
+                        { label: 'Servidas antes de detectar', data: [0, 0, 0], backgroundColor: '#ff4757', borderRadius: 4 },
+                        { label: 'Cortadas por la revocacion', data: [0, 0, 0], backgroundColor: '#00d4aa', borderRadius: 4 }
+                    ]
+                },
+                options: {
+                    ...defaults,
+                    scales: {
+                        x: { ...defaults.scales.x, stacked: true },
+                        y: { ...defaults.scales.y, stacked: true,
+                             title: { display: true, text: 'consultas', color: '#8892b0' } }
+                    }
+                }
             });
-            scenarioResultChart = new Chart(document.getElementById('scenarioResultChart'), {
-                type: 'doughnut',
-                data: { labels: ['Cumple','No Cumple','Pendiente'], datasets: [{ data: [0,0,3], backgroundColor: ['#00d4aa','#ff4757','#8892b0'], borderWidth: 0 }] },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#8892b0', font: { size: 11 }, padding: 16 } } } }
-            });
-            durationChart = new Chart(document.getElementById('durationChart'), {
+
+            rateChart = new Chart(document.getElementById('rateChart'), {
                 type: 'line',
-                data: { labels: ['Normal','Masiva','Gradual'], datasets: [{ label: 'Duracion (ms)', data: [0,0,0], borderColor: '#00d4aa', backgroundColor: 'rgba(0,212,170,0.1)', tension: 0.4, fill: true, pointBackgroundColor: '#00d4aa', pointRadius: 5 }] },
-                options: { ...defaults }
+                data: { datasets: [] },
+                options: {
+                    ...defaults,
+                    parsing: false,
+                    scales: {
+                        x: { ...defaults.scales.x, type: 'linear',
+                             title: { display: true, text: 'segundos desde el inicio', color: '#8892b0' } },
+                        y: { ...defaults.scales.y,
+                             title: { display: true, text: 'consultas / min', color: '#8892b0' } }
+                    }
+                }
             });
+
+            latencyChart = new Chart(document.getElementById('latencyChart'), {
+                type: 'bar',
+                data: {
+                    labels: ['Normal', 'Masiva', 'Gradual'],
+                    datasets: [
+                        { label: 'Mediana (s)', data: [0, 0, 0], backgroundColor: '#00d4aa', borderRadius: 4 },
+                        { label: 'p95 (s)', data: [0, 0, 0], backgroundColor: '#2563eb', borderRadius: 4 }
+                    ]
+                },
+                options: {
+                    ...defaults,
+                    scales: {
+                        x: { ...defaults.scales.x },
+                        y: { ...defaults.scales.y,
+                             title: { display: true, text: 'segundos', color: '#8892b0' } }
+                    }
+                }
+            });
+        }
+
+        function resetCharts() {
+            if (!detectionTimeChart) return;
+            detectionTimeChart.data.datasets[0].data = [0, 0, 0];
+            detectionTimeChart.data.datasets[1].data = [0, 0, 0];
+            detectionTimeChart.update();
+            queriesChart.data.datasets[0].data = [0, 0, 0];
+            queriesChart.data.datasets[1].data = [0, 0, 0];
+            queriesChart.update();
+            rateChart.data.datasets = [];
+            rateChart.update();
+        }
+
+        const COLOR_ESCENARIO = { normal: '#00d4aa', massive: '#ff4757', gradual: '#2563eb' };
+
+        function pintarSerie(key, label, serie) {
+            if (!rateChart || !serie || !serie.puntos || !serie.puntos.length) return;
+            const color = COLOR_ESCENARIO[key] || '#8892b0';
+            rateChart.data.datasets = rateChart.data.datasets.filter(d => d.clave !== key);
+            rateChart.data.datasets.push({
+                clave: key, label: label,
+                data: serie.puntos.map(pt => ({ x: pt.t, y: pt.tasa })),
+                borderColor: color, backgroundColor: color,
+                borderWidth: 2, pointRadius: 0, tension: 0.25, fill: false
+            });
+            // Cada escenario corre con un usuario distinto, asi que cada uno
+            // tiene su propio umbral: el del escenario normal aprende su ritmo
+            // habitual y baja. Dibujar una sola linea seria mentir.
+            rateChart.data.datasets.push({
+                clave: key + '__umb', label: 'Umbral ' + label,
+                data: serie.puntos.map(pt => ({ x: pt.t, y: pt.umbral })),
+                borderColor: color, borderWidth: 1.5, borderDash: [6, 4],
+                pointRadius: 0, fill: false
+            });
+            if (serie.deteccion_t !== null && serie.deteccion_t !== undefined) {
+                const punto = serie.puntos.find(pt => pt.t >= serie.deteccion_t)
+                            || serie.puntos[serie.puntos.length - 1];
+                rateChart.data.datasets.push({
+                    clave: key + '__det', label: 'Deteccion',
+                    data: [{ x: serie.deteccion_t, y: punto.tasa }],
+                    borderColor: '#ffa502', backgroundColor: '#ffa502',
+                    pointRadius: 7, pointStyle: 'triangle', showLine: false
+                });
+            }
+            rateChart.update();
         }
 
         function updateCharts(results) {
             if (!results || !results.length) return;
-            const ordered = ['normal','massive','gradual'];
+            const ordered = ['normal', 'massive', 'gradual'];
             const data = ordered.map(k => results.find(r => r.scenario === k) || {});
-            detectionTimeChart.data.datasets[0].data = data.map(r => r.detection_time_ms || 0);
+            detectionTimeChart.data.datasets[0].data = data.map(r => aSeg(r.detection_time_ms));
+            detectionTimeChart.data.datasets[1].data = data.map(r => aSeg(r.revocation_time_ms));
             detectionTimeChart.update();
+            // Lo que el atacante alcanzo a extraer frente a lo que pretendia.
             queriesChart.data.datasets[0].data = data.map(r => r.successful || 0);
-            queriesChart.data.datasets[1].data = data.map(r => r.failed || 0);
+            queriesChart.data.datasets[1].data = data.map(
+                r => Math.max(0, (r.planned_queries || 0) - (r.successful || 0)));
             queriesChart.update();
-            durationChart.data.datasets[0].data = data.map(r => r.duration_ms || 0);
-            durationChart.update();
-            const cumple = data.filter(r => r.meets_threshold).length;
-            const nocumple = data.filter(r => !r.meets_threshold && r.scenario).length;
-            const pendiente = 3 - cumple - nocumple;
-            scenarioResultChart.data.datasets[0].data = [cumple, nocumple, Math.max(0, pendiente)];
-            scenarioResultChart.update();
+            // Cuanto le costo al usuario legitimo que lo estuvieran vigilando.
+            latencyChart.data.datasets[0].data = data.map(r => aSeg(r.latencia_p50_ms));
+            latencyChart.data.datasets[1].data = data.map(r => aSeg(r.latencia_p95_ms));
+            latencyChart.update();
         }
 
         socket.on('experiment_started', (data) => {
@@ -1246,11 +1437,12 @@
 
         socket.on('experiment_finished', (data) => {
             const key = data.scenario;
-            const det = data.detection_time_ms || 0;
             const cumple = data.meets_threshold === 1;
-            const detail = (cumple ? 'Cumple' : 'No cumple') + ' - ' + det + 'ms deteccion';
+            const detail = (cumple ? 'Cumple' : 'No cumple')
+                         + (data.total_time_ms ? ' - ' + seg(data.total_time_ms) + ' total' : '');
             setScenarioState(key, cumple ? 'done' : 'fail', detail);
             updateScenarioDetail(key, data);
+            pintarSerie(key, data.label || key, data.serie);
 
             const completedCount = SCENARIOS.filter(s => {
                 const card = document.getElementById('card-' + s.key);
@@ -1269,7 +1461,7 @@
 
             if (data.cumple) {
                 banner.className = 'verdict-banner cumple';
-                banner.innerHTML = '&#10003; CUMPLE - Todos los escenarios detectaron correctamente la anomalia en menos de 1 segundo';
+                banner.innerHTML = '&#10003; CUMPLE - Todos los escenarios detectaron la anomalia y revocaron la sesion en menos de 1 segundo';
             } else {
                 banner.className = 'verdict-banner nocumple';
                 banner.innerHTML = '&#10007; NO CUMPLE - ' + data.message;
@@ -1286,7 +1478,8 @@
             verificarServicios();
             initCharts();
             loadExperimentConfig();
-            ['in-baseline','in-threshold','in-normal-q','in-normal-d','in-massive-q','in-massive-d','in-gradual-q','in-gradual-d','in-gradual-decay'].forEach(id => {
+            pintarUsuario();
+            ['in-baseline','in-normal-q','in-normal-d','in-massive-q','in-massive-d','in-gradual-q','in-gradual-d','in-gradual-decay'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.addEventListener('input', refreshLive);
             });

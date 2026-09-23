@@ -10,21 +10,24 @@ import os
 import urllib.request
 
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
-VENV_PYTHON = os.path.join(PROJECT_ROOT, 'venv', 'Scripts', 'python.exe')
-PYTHON = VENV_PYTHON if os.path.exists(VENV_PYTHON) else sys.executable
+PYTHON = sys.executable
+
+DASHBOARD_PORT = int(os.environ.get("PORT", 5000))
 
 SERVICES = [
-    (r"services\monitor.py", 5003, "Monitor"),
-    (r"services\auth.py", 5001, "Auth"),
-    (r"services\cotizacion.py", 5002, "Cotizacion"),
-    (r"services\autorizador.py", 5004, "Autorizador"),
-    (r"main.py", 5000, "Dashboard"),
+    (os.path.join("services", "monitor.py"), 5003, "Monitor"),
+    (os.path.join("services", "auth.py"), 5001, "Auth"),
+    (os.path.join("services", "cotizacion.py"), 5002, "Cotizacion"),
+    (os.path.join("services", "autorizador.py"), 5004, "Autorizador"),
+    ("main.py", DASHBOARD_PORT, "Dashboard"),
 ]
 
 processes = []
 
 CHILD_ENV = dict(os.environ)
 CHILD_ENV["PYTHONPATH"] = PROJECT_ROOT + os.pathsep + CHILD_ENV.get("PYTHONPATH", "")
+# sin esto los mensajes de los servicios quedan en el buffer y no se ven
+CHILD_ENV["PYTHONUNBUFFERED"] = "1"
 
 
 def wait_for_health(port, name, tries=30, pause=1.0, timeout=2):
@@ -32,28 +35,26 @@ def wait_for_health(port, name, tries=30, pause=1.0, timeout=2):
     for attempt in range(1, tries + 1):
         try:
             urllib.request.urlopen(url, timeout=timeout)
-            print(f"  OK   - {name} (puerto {port}) listo en ~{attempt * pause:.0f}s")
+            print(f"  OK   - {name} (puerto {port}) listo en ~{attempt * pause:.0f}s", flush=True)
             return True
         except Exception:
             time.sleep(pause)
-    print(f"  FAIL - {name} (puerto {port}) no respondio tras {tries * pause:.0f}s")
+    print(f"  FAIL - {name} (puerto {port}) no respondio tras {tries * pause:.0f}s", flush=True)
     return False
 
-print("Iniciando servicios del experimento H710...\n")
+print("Iniciando servicios del experimento H710...\n", flush=True)
 
 for script, port, name in SERVICES:
     p = subprocess.Popen(
         [PYTHON, os.path.join(PROJECT_ROOT, script)],
         cwd=PROJECT_ROOT,
         env=CHILD_ENV,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL
     )
     processes.append(p)
-    print(f"  Puerto {port} - {name} ({script.split(os.sep)[-1]})")
+    print(f"  Puerto {port} - {name} ({os.path.basename(script)})", flush=True)
     time.sleep(1.0)
 
-print("\nEsperando que los servicios estén listos...")
+print("\nEsperando que los servicios esten listos...", flush=True)
 
 all_ok = True
 for script, port, name in SERVICES:
@@ -61,13 +62,10 @@ for script, port, name in SERVICES:
         all_ok = False
 
 if not all_ok:
-    print("  Algunos servicios no respondieron (revisa puertos ocupados).")
+    print("  Algunos servicios no respondieron (revisa puertos ocupados).", flush=True)
 
-print("\n" + "=" * 60)
-print("  Todos los servicios iniciados.")
-print("  Abre http://127.0.0.1:5000 en tu navegador")
-print("=" * 60)
-print("\nPresiona Ctrl+C para detener todos los servicios\n")
+print(f"\nListo -> http://127.0.0.1:{DASHBOARD_PORT}   (Ctrl+C para detener)\n",
+      flush=True)
 
 try:
     for p in processes:

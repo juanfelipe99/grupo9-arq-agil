@@ -380,6 +380,15 @@
                 });
                 const data = await res.json();
                 if (res.ok) {
+                    // La sesion se conserva para que el dashboard sepa quien
+                    // esta dentro y pueda cerrarla.
+                    try {
+                        localStorage.setItem('h710_sesion', JSON.stringify({
+                            session_id: data.session_id,
+                            nombre: (data.user || {}).name,
+                            email: (data.user || {}).email
+                        }));
+                    } catch (err) { /* sin almacenamiento, se sigue igual */ }
                     showToast('Sesion iniciada correctamente', 'success');
                     document.getElementById('loginForm').reset();
                     setTimeout(() => { window.location.href = '/dashboard'; }, 800);
