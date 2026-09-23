@@ -9,6 +9,7 @@ import uuid
 import time
 import random
 import requests
+from message_queue import publish_behavior_event
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
@@ -43,29 +44,10 @@ def quote():
         except Exception as e:
             print(f"[Cotizacion] Error consultando Autorizador: {e}")
 
-        try:
-            reg = requests.post(
-                f"{MONITOR_URL}/registrar",
-                json={"session_id": session_id, "user_id": int(user_id)},
-                timeout=5
-            ).json()
-            if reg.get('es_anomalia'):
-                try:
-                    requests.post(
-                        f"{AUTORIZADOR_URL}/revocar",
-                        json={"session_id": session_id,
-                              "motivo": "Anomalia detectada por Monitor"},
-                        timeout=5
-                    )
-                except Exception:
-                    pass
-                return jsonify({
-                    "quote_id": quote_id, "status": "ANOMALY_DETECTED",
-                    "message": "Anomalia detectada. Sesion bloqueada.",
-                    "detection_time_ms": reg.get('tiempo_deteccion_ms', 0)
-                }), 403
-        except Exception as e:
-            print(f"[Cotizacion] Error consultando Monitor: {e}")
+        publish_behavior_event({
+            "session_id": session_id,
+            "user_id": int(user_id)
+        })
 
     return jsonify({
         "quote_id": quote_id, "client_id": client_id,
