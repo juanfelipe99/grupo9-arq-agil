@@ -1,321 +1,296 @@
-# Experimento: Validación de Votación ante Resultados Inconsistentes de Rating
+# Experimento: Detección de Comportamiento Anómalo (H710)
 
-**Módulo 4 - EDA (Estudio de Diseño de Arquitectura)**
-**ASR: HA-06 - Disponibilidad Funcional**
-
----
-
-## Objetivo
-
-Validar que la arquitectura de Cotización y Rating puede detectar y ocultar mediante votación un resultado incorrecto de una instancia de Rating, manteniendo un resultado válido en las cotizaciones con tiempo de respuesta inferior a 250 ms más del 95% de las veces.
+**Módulo 7 - Seguridad | Arquitecturas Ágiles | ASR-12 Confidencialidad**
 
 ---
 
-## Requisitos
+## Descripción General
 
-### Sistema Operativo
-- Windows 10/11
+Sistema de microservicios que evalúa si el **Monitor de comportamiento**, integrado al componente **Cotización y Rating**, puede identificar en tiempo casi inmediato cuando un administrador realiza un volumen de consultas significativamente diferente a su comportamiento habitual.
 
-### Software
-| Componente | Versión | Propósito |
-|------------|---------|-----------|
-| Python | 3.10+ | Ejecución de microservicios |
-| pip | Última | Gestión de dependencias |
-| Apache JMeter | 5.6+ | Pruebas de carga (opcional) |
+**Objetivo del experimento:** Comprobar si un modelo matemático sencillo del comportamiento normal del usuario permite detectar una desviación que supere un umbral definido y comunicar la anomalía al Autorizador, con un **tiempo de detección inferior a 1 segundo**.
 
-### Dependencias Python
+### Resultados Esperados
+
+Se espera que el Monitor de comportamiento permita diferenciar entre un comportamiento habitual y un patrón de extracción masiva de información, identificando la anomalía cuando se supera el umbral definido y marcando la sesión como anómala dentro del tiempo establecido por el ASR.
+
+---
+
+## Arquitectura del Sistema
+
+### Microservicios Independientes (5 procesos)
+
+Cada microservicio es un proceso Flask independiente con su propio puerto, comunicándose via HTTP:
+
+| Microservicio | Puerto | Archivo | Propósito |
+|---|---|---|---|
+| **Dashboard** | 5000 | `main.py` | Interfaz web + orquestador del experimento |
+| **Auth** | 5001 | `services/auth.py` | Registro e inicio de sesión de administradores |
+| **Cotización y Rating** | 5002 | `services/cotizacion.py` | Recibe y responde consultas de clientes |
+| **Monitor de Comportamiento** | 5003 | `services/monitor.py` | Detecta anomalías por tasa de consultas |
+| **Autorizador** | 5004 | `services/autorizador.py` | Bloqueo/revocación de sesiones anómalas |
+
+### Flujo de Comunicación
+
 ```
-flask>=3.0
-requests>=2.31
-waitress>=3.0
-urllib3>=2.0
+Browser → Dashboard (:5000) → Cotización (:5002) → Monitor (:5003) → Autorizador (:5004)
+                                        │
+Browser → Dashboard (:5000) → Auth (:5001)
 ```
 
-### Instalación
+Todos los servicios se inician con `python start.py` y se comunican via HTTP using `requests`.
+
+### Conectores
+
+| Conector | Tipo | Tecnología |
+|---|---|---|
+| Dashboard → Cualquier servicio | HTTP (proxy) | `requests` |
+| Cotización → Monitor | HTTP síncrono | `requests` |
+| Monitor → Autorizador | HTTP síncrono (si anomalia) | `requests` |
+
+### Modelo de Detección de Anomalías
+
+| Parámetro | Valor | Descripción |
+|---|---|---|
+| Baseline | 50 consultas/min | Comportamiento normal del administrador |
+| Umbral de anomalía | 150 consultas/min | 3x el baseline → se marca sesión como anómala |
+| Tiempo límite | < 1 segundo | Tiempo máximo de detección requerido |
+
+### Escenarios de Experimentación
+
+| Escenario | Tipo | Consultas | Delay | Descripción |
+|---|---|---|---|---|
+| Comportamiento Normal | Normal | 50 | 1.5s | Patrón habitual del administrador |
+| Extracción Masiva | Anómalo | 200 | 0.01s | Ataque bruto, alto volumen |
+| Escala Gradual | Gradual | 151 | 0.1→0.01s | Se intensifica progresivamente |
+
+---
+
+## Tecnologías Utilizadas (Diap. 8)
+
+| Categoría | Tecnología | Justificación |
+|---|---|---|
+| Lenguajes | Python 3.10+, HTML/CSS/JavaScript | Alto nivel, ideal para prototipos |
+| Framework | Flask 3.0+ | Endpoints REST rápidos |
+| Comunicación | requests 2.31+ | Comunicación síncrona entre servicios |
+| Base de datos | SQLite (sqlite3) | Sin servidor dedicado, ideal para pruebas |
+| Análisis de carga | Apache JMeter 5.6+ | Generación de escenarios y medición |
+| Despliegue | Local + Heroku | Desarrollo local y producción en la nube |
+
+---
+
+## Requisitos Previos
+
+- **Python 3.10** o superior
+- **Git** para clonar el repositorio
+- **Apache JMeter 5.6+** (opcional, para scripts de carga)
+- **Navegador web** moderno (Chrome, Firefox, Edge)
+
+---
+
+## Instalación Local
+
+### 1. Clonar o copiar el repositorio
 
 ```bash
-cd ruta/del/proyecto
+git clone <URL_DEL_REPOSITORIO>
+cd grupo9_arq_agiles
+```
+
+### 2. Crear entorno virtual
+
+```bash
+python -m venv venv
+```
+
+**Windows:**
+```bash
+venv\Scripts\activate
+```
+
+**Linux / macOS:**
+```bash
+source venv/bin/activate
+```
+
+### 3. Instalar dependencias
+
+```bash
 pip install -r requirements.txt
 ```
+
+### 4. Base de datos
+
+La base de datos se crea automáticamente al iniciar el servicio Auth con 2 usuarios pre-cargados:
+
+| Nombre | Email | Contraseña |
+|---|---|---|
+| Administrador | admin@ejemplo.com | admin123 |
+| Investigador | investigador@ejemplo.com | demo123 |
+
+### 5. Ejecutar todos los servicios
+
+```bash
+python start.py
+```
+
+Esto lanza los 5 microservicios como procesos independientes:
+
+| Servicio | Puerto |
+|---|---|
+| Dashboard | http://localhost:5000 |
+| Auth | http://localhost:5001 |
+| Cotización | http://localhost:5002 |
+| Monitor | http://localhost:5003 |
+| Autorizador | http://localhost:5004 |
+
+Presiona `Ctrl+C` para detener todos los servicios.
+
+---
+
+## Uso del Sistema
+
+1. Abrir **http://localhost:5000** en el navegador
+2. **Iniciar sesión** con las credenciales de ejemplo (admin@ejemplo.com / admin123)
+3. Navegar al **Dashboard** (se accede automáticamente tras login)
+4. Hacer clic en **"Ejecutar Experimentos"**
+5. Observar los resultados en tiempo real por escenario (gráficas y métricas)
 
 ---
 
 ## Estructura del Proyecto
 
 ```
-experimento_prueba/
-├── config.py                     # Configuración centralizada (URLs, puertos)
-├── requirements.txt              # Dependencias Python
-├── start.py                      # Script de inicio de todos los servicios
-├── services/
-│   ├── rating/
-│   │   ├── rating1.py            # Instancia Rating 1 (puerto 5001)
-│   │   ├── rating2.py            # Instancia Rating 2 (puerto 5002)
-│   │   └── rating3.py            # Instancia Rating 3 (puerto 5003)
-│   ├── votacion.py               # Componente de Votación (puerto 5004)
-│   └── enmascaramiento.py        # Componente de Enmascaramiento (puerto 5005)
-├── client/
-│   ├── cotizacion.py             # Orquestador principal + UI (puerto 5000)
-│   └── templates/
-│       └── index.html            # Interfaz web de prueba
-└── jmeter/
-    └── test_plan.jmx             # Plan de pruebas JMeter
+grupo9_arq_agiles/
+├── venv/                          # Entorno virtual Python
+├── config.py                      # URLs y puertos centralizados
+├── start.py                       # Lanzador de todos los servicios
+├── main.py                        # Dashboard (puerto 5000)
+├── services/                      # Microservicios independientes
+│   ├── auth.py                    # Auth (puerto 5001)
+│   ├── cotizacion.py              # Cotización y Rating (puerto 5002)
+│   ├── monitor.py                 # Monitor de Comportamiento (puerto 5003)
+│   └── autorizador.py             # Autorizador (puerto 5004)
+├── requirements.txt               # Dependencias Python
+├── Procfile                       # Configuración Heroku
+├── README.md                      # Esta documentación
+├── data/
+│   └── experiment.db              # Base de datos SQLite compartida
+├── templates/
+│   ├── index.html                 # Página principal (registro/login)
+│   └── dashboard.html             # Dashboard de resultados
+├── static/
+│   └── css/
+│       └── style.css              # Estilos dark theme
+├── jmeter/
+│   ├── normal_behavior.jmx        # Script JMeter: comportamiento normal
+│   ├── massive_extraction.jmx     # Script JMeter: extracción masiva
+│   └── gradual_stair.jmx         # Script JMeter: escala gradual
+└── scripts/
+    └── run_jmeter.py              # Ejecuta JMeter y recopila resultados
 ```
 
 ---
 
-## Modo de Uso
+## API Endpoints
 
-### 1. Iniciar todos los servicios
+| Método | Ruta | Microservicio | Descripción |
+|---|---|---|---|
+| GET | `/` | Dashboard | Página principal (registro + login) |
+| GET | `/dashboard` | Dashboard | Dashboard de resultados |
+| POST | `/api/auth/register` | Auth | Registrar administrador |
+| POST | `/api/auth/login` | Auth | Iniciar sesión |
+| GET | `/api/cotizacion/quote` | Cotización y Rating | Consulta de cotización |
+| POST | `/api/experiment/run-all` | Dashboard | Ejecuta los 3 escenarios en secuencia |
+| GET | `/api/experiment/results` | Dashboard | Obtener resultados |
+| GET | `/api/experiment/stats` | Dashboard | Estadísticas generales |
+| GET | `/api/users` | Dashboard | Lista de usuarios registrados |
+| GET | `/api/status` | Dashboard | Estado de todos los microservicios |
+
+---
+
+## Scripts JMeter
+
+Los scripts JMeter se encuentran en la carpeta `jmeter/` y se pueden ejecutar con:
 
 ```bash
-cd ruta/del/proyecto
-python start.py
+# Comportamiento normal
+jmeter -n -t jmeter/normal_behavior.jmx -l results/normal.jtl
+
+# Extracción masiva
+jmeter -n -t jmeter/massive_extraction.jmx -l results/massive.jtl
+
+# Escala gradual
+jmeter -n -t jmeter/gradual_stair.jmx -l results/gradual.jtl
 ```
 
-Los 6 servicios se iniciarán automáticamente:
-| Servicio | Puerto |
-|----------|--------|
-| Cotización (UI) | 5000 |
-| Rating 1 | 5001 |
-| Rating 2 | 5002 |
-| Rating 3 | 5003 |
-| Votación | 5004 |
-| Enmascaramiento | 5005 |
-
-### 2. Abrir la interfaz web
-
-Abrir en el navegador: **http://127.0.0.1:5000**
-
-> **Nota:** Se usa `127.0.0.1` en lugar de `localhost` para evitar problemas de resolución DNS en Windows que causan lentitud.
-
-### 3. Configurar la prueba de carga
-
-En la interfaz web:
-
-1. **Usuarios concurrentes**: Número de hilos simultáneos (1-1000)
-2. **Iteraciones por usuario**: Peticiones por hilo (1-10000)
-3. **Simular fallo en Rating**: Seleccionar cuál instancia falla
-   - `Ninguna` - Sin fallo (todas calculan correctamente)
-   - `Rating 1` - Fallo fijo en Rating 1
-   - `Rating 2` - Fallo fijo en Rating 2
-   - `Rating 3` - Fallo fijo en Rating 3
-   - `Aleatorio` - Cada petición elige una instancia al azar
-
-4. Hacer clic en **"Ejecutar Prueba de Carga"**
-
-### 4. Ejecutar con JMeter (opcional)
-
-1. Descargar Apache JMeter desde: https://jmeter.apache.org/download_jmeter.cgi
-2. Ejecutar `bin\ApacheJMeter.bat`
-3. `File → Open` → seleccionar `jmeter\test_plan.jmx`
-4. Click en botón **Start** (verde)
-
----
-
-## Arquitectura del Experimento
-
-```
-┌─────────────────┐
-│   Cliente UI     │
-│   (Puerto 5000)  │
-└────────┬────────┘
-         │ POST /cotizar
-         ▼
-┌─────────────────┐
-│  Cotización      │ ◄── Orquestador
-│  (Flask)         │
-└────────┬────────┘
-         │ Paralelo (3 hilos)
-    ┌────┼────┐
-    ▼    ▼    ▼
-┌──────┐┌──────┐┌──────┐
-│ R1   ││ R2   ││ R3   │  ← Instancias Rating
-│5001  ││5002  ││5003  │    (una puede fallar)
-└──┬───┘└──┬───┘└──┬───┘
-   │       │       │
-   └───┬───┘───────┘
-       ▼
-┌─────────────────┐
-│   Votación       │ ◄── Compara 3 resultados
-│   (Puerto 5004)  │     Detecta outlier
-└────────┬────────┘
-         ▼
-┌─────────────────┐
-│ Enmascaramiento  │ ◄── Oculta resultado incorrecto
-│   (Puerto 5005)  │
-└────────┬────────┘
-         ▼
-┌─────────────────┐
-│ Respuesta JSON   │ ◄── Resultado válido + métricas
-└─────────────────┘
-```
-
----
-
-## Tácticas de Arquitectura Implementadas
-
-| Táctica | Descripción | Componente |
-|---------|-------------|------------|
-| **Votación** | Compara las respuestas de 3 instancias y detecta el resultado que se aparta del resto | `votacion.py` |
-| **Enmascaramiento** | El resultado incorrecto nunca llega al usuario, solo se entrega el resultado válido | `enmascaramiento.py` |
-| **Redundancia** | 3 instancias independientes permiten continuar la operación aunque una presente degradación | `rating1.py`, `rating2.py`, `rating3.py` |
-
----
-
-## Simulación de Fallo
-
-### Comportamiento por instancia
-
-| Instancia | Modo Normal | Modo Fallo (`?fail=true`) |
-|-----------|-------------|---------------------------|
-| Rating 1 | `score = monto × 0.15` | `score = -500` |
-| Rating 2 | `score = monto × 0.15` | `score = -500` |
-| Rating 3 | `score = monto × 0.15` | `score = -500` |
-
-Cuando una instancia falla:
-- Retorna `score: -500` y `rating: F`
-- La votación lo identifica como outlier (score diferente al resto)
-- El enmascaramiento oculta este resultado
-- El cliente recibe el resultado válido de las otras dos instancias
-
----
-
-## Interpretación de Resultados
-
-### Tarjeta 1: Resultados de la Prueba
-
-| Métrica | Descripción |
-|---------|-------------|
-| Total Peticiones | Total de peticiones realizadas |
-| Exitosas | Peticiones que respondieron HTTP 200 |
-| Errores | Peticiones fallidas (timeout, error de servidor) |
-| Tiempo Total | Duración total de la prueba |
-| Requests/segundo | Throughput del sistema |
-
-**Criterio de Éxito:** 100% de las peticiones responden correctamente.
-**Criterio de Error:** Cualquier petición retorna error o timeout.
-
----
-
-### Tarjeta 2: Enmascaramiento y Votación
-
-| Métrica | Descripción |
-|---------|-------------|
-| Outliers Detectados | Número de resultados incorrectos detectados por la votación |
-| Distribución de Fallos | Cuántas veces falló cada instancia (ej: `rating1: 6, rating2: 2, rating3: 2`) |
-| Resultado Final Válido | Siempre se entrega un resultado correcto al cliente |
-
-**Criterio de Éxito:** Todos los outliers son detectados y el resultado incorrecto nunca llega al cliente.
-**Criterio de Error:** Algún resultado incorrecto se entrega al usuario.
-
-**Nota:** Con modo "Aleatorio", la distribución de fallos varía entre instancias, demostrando que la votación funciona independientemente de cuál instancia falle.
-
----
-
-### Tarjeta 3: Tiempo de Respuesta
-
-| Métrica | Descripción |
-|---------|-------------|
-| Mínimo | Tiempo de respuesta más rápido |
-| Máximo | Tiempo de respuesta más lento |
-| Promedio | Tiempo promedio de respuesta |
-| Mediana (P50) | 50% de las peticiones son más rápidas que este valor |
-| Dentro de 250ms | Peticiones que cumplieron el límite |
-| % Cumplimiento | Porcentaje de peticiones dentro del límite |
-
-**Criterio de Éxito:** ≥ 95% de las peticiones con tiempo < 250 ms.
-**Criterio de Error:** < 95% de las peticiones dentro del límite.
-
----
-
-## Veredicto Automático
-
-La interfaz muestra automáticamente:
-
-- **CUMPLE** (verde) cuando se cumplen todos los criterios
-- **NO CUMPLE** (rojo) cuando algún criterio falla
-
-### Ejemplo de resultado exitoso
-
-```
-Resultados de la Prueba
-  Criterios
-    Exito: 100% peticiones responden correctamente (HTTP 200)
-    Error: Cualquier peticion retorna error o timeout
-  CUMPLE - 1000/1000 exitosas
-
-Enmascaramiento y Votacion
-  Criterios
-    Exito: Outliers detectados y resultado incorrecto nunca llega al cliente
-    Error: Resultado incorrecto se entrega al usuario
-  CUMPLE - Votacion y enmascaramiento funcionales
-
-Tiempo de Respuesta
-  Criterios
-    Exito: >= 95% peticiones con tiempo < 250ms
-    Error: < 95% peticiones dentro del limite
-  CUMPLE - 99.8% dentro de 250ms
-```
-
----
-
-## Limitaciones del Servidor de Desarrollo
-
-El servidor incluido en Flask (`app.run()`) es de un **solo hilo** y no está diseñado para manejar alta concurrencia. Bajo carga elevada, cada petición a `/cotizar` genera internamente hasta 5 llamadas HTTP adicionales (3 ratings + votación + enmascaramiento), lo que satura rápidamente el servidor.
-
-### Relación usuarios → peticiones internas
-
-```
-N usuarios concurrentes
-  → N peticiones a /cotizar
-    → N × 3 llamadas a rating (paralelas)
-    → N llamadas a votación
-    → N llamadas a enmascaramiento
-    ─────────────────────────────────
-    Total conexiones simultáneas: N × 5
-```
-
-### Límites recomendados con Flask dev server
-
-| Usuarios concurrentes | Comportamiento esperado |
-|-----------------------|------------------------|
-| 1 – 20 | Estable, sin errores |
-| 20 – 50 | Errores intermitentes por saturación |
-| 50+ | Alta tasa de errores (timeout / connection refused) |
-
-> **Nota:** Las métricas de Enmascaramiento y Votación solo se calculan sobre peticiones **exitosas**. Los errores de conexión indican que el servidor no procesó la petición, no que la votación haya fallado.
-
-### Solución para pruebas con alta concurrencia
-
-Reemplazar el servidor de desarrollo por **gunicorn**:
+O ejecutar el script Python integrado:
 
 ```bash
-pip install gunicorn
-gunicorn -w 4 -b 0.0.0.0:5000 "client.cotizacion:app"
+python scripts/run_jmeter.py --scenario normal
+python scripts/run_jmeter.py --scenario massive
+python scripts/run_jmeter.py --scenario gradual
 ```
 
-| Parámetro | Descripción |
-|-----------|-------------|
-| `-w 4` | 4 workers (procesos paralelos) |
-| `-b 0.0.0.0:5000` | Puerto de escucha |
+---
 
-Con gunicorn se pueden manejar varios cientos de usuarios concurrentes sin errores.
+## Despliegue en Heroku
+
+```bash
+# Crear app en Heroku
+heroku create nombre-app-experimento
+
+# Desplegar
+git push heroku main
+
+# Abrir en el navegador
+heroku open
+```
 
 ---
 
-## Solución de Problemas
+## Resultados del Experimento
 
-| Problema | Solución |
-|----------|----------|
-| Servicios no inician | Verificar que Python 3.10+ está instalado: `python --version` |
-| Puerto en uso | Matar procesos anteriores: `Get-Process python \| Stop-Process -Force` |
-| Lentitud en respuestas | Usar `127.0.0.1` en lugar de `localhost` en las URLs |
-| JMeter no encuentra el plan | Verificar la ruta en `File → Open` |
-| Error de conexión | Asegurar que todos los servicios estén corriendo: `http://127.0.0.1:5000/health` |
+### Tiempos de Detección
+
+| Escenario | Consultas | Duración | Detección | Anomalía | Cumple <1s |
+|---|---|---|---|---|---|
+| Comportamiento Normal | 50 | ~75s | 0ms | No | Sí |
+| Extracción Masiva | 200 | ~6.7s | **5.13ms** | Sí | Sí |
+| Escala Gradual | 151 | ~7.7s | **~5ms** | Sí | Sí |
+
+**Resultado:** El Monitor de comportamiento detecta anomalías en **~5ms** (mucho menos de 1 segundo requerido).
+
+### Verificación del Umbral
+
+- Umbral requerido: < 1 segundo (1000ms)
+- Tiempo de detección obtenido: ~5ms
+- **Cumplimiento: SÍ** ✓
+
+### Interpretación de Resultados
+
+| Escenario | Resultado Esperado | Resultado Obtenido | Valido |
+|---|---|---|---|
+| Comportamiento Normal | No detecta anomalía | No detectó | ✓ |
+| Extracción Masiva | Detecta en <1s | Detectó en ~5ms | ✓ |
+| Escala Gradual | Detecta en <1s | Detectó en ~5ms | ✓ |
+
+**Conclusión:** El Monitor cumple con el ASR-12 de confidencialidad, detectando anomalías 200 veces más rápido que el límite de 1 segundo requerido.
 
 ---
 
-## Derechos Reservados
+## Créditos
 
-Universidad de los Andes - Módulo 4 EDA
+**Grupo 9 - Arquitecturas Ágiles**
+- Jesús Gómez
+- Miguel Higuera
+- Juan Pablo Vargas
+- Juan Felipe Quiñonez
+
+**Universidad de los Andes** - Módulo 7: Seguridad
+
+---
+
+## Licencia
+
+Derechos Reservados - Universidad de los Andes

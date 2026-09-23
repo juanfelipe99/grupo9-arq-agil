@@ -1,1 +1,1 @@
-web: python start.py
+web: gunicorn main:app --worker-class eventlet -w 1 --bind 0.0.0.0:$PORT

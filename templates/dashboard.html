@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Deteccion de Comportamiento Anomalo</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #0a0e27;
+            color: #ffffff;
+            min-height: 100vh;
+        }
+
+        .navbar {
+            background: #111631;
+            padding: 16px 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid rgba(0, 212, 170, 0.2);
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .navbar-left {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .navbar-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #ffffff;
+        }
+
+        .navbar-subtitle {
+            font-size: 0.8rem;
+            color: #8892b0;
+            margin-top: 2px;
+        }
+
+        .navbar-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .badge {
+            background: rgba(0, 212, 170, 0.15);
+            color: #00d4aa;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border: 1px solid rgba(0, 212, 170, 0.3);
+        }
+
+        .status-indicators {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.75rem;
+            color: #8892b0;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #00d4aa;
+            box-shadow: 0 0 6px rgba(0, 212, 170, 0.6);
+        }
+
+        .status-dot.offline {
+            background: #ff4757;
+            box-shadow: 0 0 6px rgba(255, 71, 87, 0.6);
+        }
+
+        .navbar-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 8px 18px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-green {
+            background: #00d4aa;
+            color: #0a0e27;
+            font-weight: 700;
+        }
+
+        .btn-green:hover {
+            background: #00b894;
+            transform: translateY(-1px);
+        }
+
+        .btn-red {
+            background: #ff4757;
+            color: #ffffff;
+        }
+
+        .btn-red:hover {
+            background: #e8384f;
+            transform: translateY(-1px);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 32px 24px;
+        }
+
+        .section {
+            background: #111631;
+            border-radius: 12px;
+            padding: 28px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            margin-bottom: 24px;
+        }
+
+        .section h3 {
+            font-size: 1rem;
+            margin-bottom: 18px;
+            color: #ffffff;
+            font-weight: 700;
+        }
+
+        .experiment-selector {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .experiment-selector select {
+            padding: 10px 16px;
+            background: #0a0e27;
+            border: 1px solid rgba(136, 146, 176, 0.2);
+            border-radius: 8px;
+            color: #ffffff;
+            font-size: 0.85rem;
+            font-family: 'Segoe UI', sans-serif;
+            min-width: 260px;
+            cursor: pointer;
+        }
+
+        .experiment-selector select:focus {
+            outline: none;
+            border-color: #00d4aa;
+        }
+
+        .experiment-selector select option {
+            background: #111631;
+            color: #ffffff;
+        }
+
+        .run-all-section {
+            background: linear-gradient(135deg, #1a1f3a 0%, #111631 100%);
+            border-radius: 12px;
+            padding: 28px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            margin-bottom: 24px;
+        }
+
+        .run-all-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .run-all-header h3 {
+            font-size: 1.1rem;
+            color: #ffffff;
+        }
+
+        .progress-container {
+            background: #0a0e27;
+            border-radius: 12px;
+            padding: 16px 20px;
+            margin-bottom: 20px;
+        }
+
+        .progress-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 0.8rem;
+        }
+
+        .progress-label { color: #8892b0; }
+        .progress-pct { color: #00d4aa; font-weight: 700; }
+
+        .progress-bar-bg {
+            height: 10px;
+            background: #1a1f3a;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #00d4aa, #2563eb);
+            border-radius: 5px;
+            transition: width 0.5s ease;
+        }
+
+        .scenario-cards {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 16px;
+        }
+
+        .scenario-card {
+            background: #0a0e27;
+            border: 1px solid rgba(136, 146, 176, 0.15);
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .scenario-card.active {
+            border-color: #2563eb;
+            box-shadow: 0 0 15px rgba(37, 99, 235, 0.2);
+        }
+
+        .scenario-card.done {
+            border-color: #00d4aa;
+        }
+
+        .scenario-card.fail {
+            border-color: #ff4757;
+        }
+
+        .scenario-card-icon {
+            font-size: 1.8rem;
+            margin-bottom: 8px;
+        }
+
+        .scenario-card-icon.pulse {
+            color: #2563eb;
+            animation: pulse-dot 1s ease-in-out infinite;
+            text-shadow: 0 0 10px rgba(37, 99, 235, 0.8);
+        }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; text-shadow: 0 0 10px rgba(37, 99, 235, 0.8); }
+            50% { opacity: 0.2; text-shadow: 0 0 2px rgba(37, 99, 235, 0.2); }
+        }
+
+        .scenario-card-title {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: #ffffff;
+            margin-bottom: 4px;
+        }
+
+        .scenario-card-status {
+            font-size: 0.75rem;
+            color: #8892b0;
+            margin-bottom: 8px;
+        }
+
+        .scenario-card-detail {
+            font-size: 0.7rem;
+            color: #8892b0;
+        }
+
+        .verdict-banner {
+            border-radius: 10px;
+            padding: 16px 24px;
+            margin-top: 20px;
+            text-align: center;
+            font-weight: 700;
+            font-size: 0.95rem;
+            display: none;
+        }
+
+        .verdict-banner.cumple {
+            display: block;
+            background: rgba(0, 212, 170, 0.15);
+            color: #00d4aa;
+            border: 1px solid rgba(0, 212, 170, 0.3);
+        }
+
+        .verdict-banner.nocumple {
+            display: block;
+            background: rgba(255, 71, 87, 0.15);
+            color: #ff4757;
+            border: 1px solid rgba(255, 71, 87, 0.3);
+        }
+
+        .realtime-section {
+            background: linear-gradient(135deg, #1a1f3a 0%, #111631 100%);
+            border-radius: 12px;
+            padding: 28px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            margin-bottom: 24px;
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 24px;
+            align-items: center;
+        }
+
+        .realtime-left h2 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: #ffffff;
+            margin-bottom: 4px;
+        }
+
+        .realtime-left p {
+            font-size: 0.8rem;
+            color: #8892b0;
+        }
+
+        .realtime-center {
+            display: flex;
+            gap: 40px;
+            justify-content: center;
+        }
+
+        .metric {
+            text-align: center;
+        }
+
+        .metric-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #00d4aa;
+        }
+
+        .metric-value.red {
+            color: #ff4757;
+        }
+
+        .metric-label {
+            font-size: 0.7rem;
+            color: #8892b0;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-top: 4px;
+        }
+
+        .realtime-right {
+            text-align: right;
+        }
+
+        .realtime-right .status-badge {
+            background: rgba(0, 212, 170, 0.15);
+            color: #00d4aa;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            border: 1px solid rgba(0, 212, 170, 0.3);
+            display: inline-block;
+            margin-bottom: 8px;
+        }
+
+        .realtime-right p {
+            font-size: 0.75rem;
+            color: #8892b0;
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            text-align: left;
+            padding: 10px 14px;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #8892b0;
+            border-bottom: 1px solid rgba(136, 146, 176, 0.15);
+            font-weight: 600;
+        }
+
+        td {
+            padding: 10px 14px;
+            font-size: 0.8rem;
+            color: #ffffff;
+            border-bottom: 1px solid rgba(136, 146, 176, 0.08);
+        }
+
+        tr:hover td {
+            background: rgba(0, 212, 170, 0.03);
+        }
+
+        .badge-success {
+            background: rgba(0, 212, 170, 0.12);
+            color: #00d4aa;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .badge-fail {
+            background: rgba(255, 71, 87, 0.12);
+            color: #ff4757;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .badge-pending {
+            background: rgba(136, 146, 176, 0.12);
+            color: #8892b0;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .alert-banner {
+            background: rgba(255, 71, 87, 0.1);
+            border: 2px solid #ff4757;
+            border-radius: 12px;
+            padding: 16px 24px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .alert-banner-icon {
+            font-size: 1.5rem;
+        }
+
+        .alert-banner-text {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #ff4757;
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        .chart-container {
+            background: #111631;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .chart-container h4 {
+            font-size: 0.9rem;
+            margin-bottom: 16px;
+            color: #ffffff;
+            font-weight: 600;
+        }
+
+        .chart-wrapper {
+            position: relative;
+            height: 250px;
+        }
+
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            z-index: 9999;
+            transform: translateX(120%);
+            transition: transform 0.3s ease;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+        }
+
+        .toast.show {
+            transform: translateX(0);
+        }
+
+        .toast-success {
+            background: #00d4aa;
+            color: #0a0e27;
+        }
+
+        .toast-error {
+            background: #ff4757;
+            color: #ffffff;
+        }
+
+        .toast-info {
+            background: #2563eb;
+            color: #ffffff;
+        }
+
+        .scenario-detail {
+            background: #111631;
+            border-radius: 12px;
+            padding: 24px 28px;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            border: 1px solid transparent;
+            transition: border-color 0.3s ease;
+        }
+
+        .scenario-detail.cumple {
+            border-color: #00d4aa;
+        }
+
+        .scenario-detail.nocumple {
+            border-color: #ff4757;
+        }
+
+        .scenario-detail h3 {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #ffffff;
+            margin-bottom: 16px;
+        }
+
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 16px;
+        }
+
+        .detail-item {
+            text-align: center;
+        }
+
+        .detail-label {
+            display: block;
+            font-size: 0.65rem;
+            color: #8892b0;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 6px;
+        }
+
+        .detail-value {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #ffffff;
+        }
+
+        .detail-value.green { color: #00d4aa; }
+        .detail-value.red { color: #ff4757; }
+
+        @media (max-width: 900px) {
+            .charts-grid { grid-template-columns: 1fr; }
+            .realtime-section { grid-template-columns: 1fr; text-align: center; }
+            .realtime-center { justify-content: center; }
+            .realtime-right { text-align: center; }
+            .navbar { flex-direction: column; gap: 12px; padding: 16px; }
+            .navbar-right { flex-wrap: wrap; justify-content: center; }
+            .scenario-cards { grid-template-columns: 1fr; }
+            .detail-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+
+        @media (max-width: 600px) {
+            .detail-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar">
+        <div class="navbar-left">
+            <div class="navbar-title">Experimento: Deteccion de Comportamiento Anomalo</div>
+            <div class="navbar-subtitle">Modulo 7 - Seguridad | Arquitecturas Agiles</div>
+        </div>
+        <div class="navbar-right">
+            <div class="status-indicators">
+                <div class="status-item"><span class="status-dot" id="dot-cotizacion"></span>Cotizacion</div>
+                <div class="status-item"><span class="status-dot" id="dot-monitor"></span>Monitor</div>
+                <div class="status-item"><span class="status-dot" id="dot-autorizador"></span>Autorizador</div>
+                <div class="status-item"><span class="status-dot" id="dot-auth"></span>Auth</div>
+                <div class="status-item"><span class="status-dot" id="dot-dashboard"></span>Dashboard</div>
+            </div>
+            <div class="navbar-actions">
+            </div>
+            <span class="badge">Administrador</span>
+        </div>
+    </nav>
+
+    <div class="container">
+
+        <div class="run-all-section">
+            <div class="run-all-header">
+                <h3>Experimento de Deteccion de Anomalias</h3>
+                <button class="btn btn-green" id="btnRunAll" onclick="runAllExperiments()">Ejecutar Experimentos</button>
+            </div>
+            <div class="progress-container" id="progressContainer" style="display:none;">
+                <div class="progress-info">
+                    <span class="progress-label" id="progressLabel">Preparando...</span>
+                    <span class="progress-pct" id="progressPct">0%</span>
+                </div>
+                <div class="progress-bar-bg">
+                    <div class="progress-bar-fill" id="progressBar"></div>
+                </div>
+            </div>
+            <div class="scenario-cards" id="scenarioCards">
+                <div class="scenario-card" id="card-normal">
+                    <div class="scenario-card-icon" id="icon-normal">&#9201;</div>
+                    <div class="scenario-card-title">Comportamiento Normal</div>
+                    <div class="scenario-card-status" id="status-normal">Pendiente</div>
+                    <div class="scenario-card-detail">50 consultas / 1.5s delay</div>
+                </div>
+                <div class="scenario-card" id="card-massive">
+                    <div class="scenario-card-icon" id="icon-massive">&#9201;</div>
+                    <div class="scenario-card-title">Extraccion Masiva</div>
+                    <div class="scenario-card-status" id="status-massive">Pendiente</div>
+                    <div class="scenario-card-detail">200 consultas / 0.01s delay</div>
+                </div>
+                <div class="scenario-card" id="card-gradual">
+                    <div class="scenario-card-icon" id="icon-gradual">&#9201;</div>
+                    <div class="scenario-card-title">Escala Gradual</div>
+                    <div class="scenario-card-status" id="status-gradual">Pendiente</div>
+                    <div class="scenario-card-detail">151 consultas / delay decreciente</div>
+                </div>
+            </div>
+            <div class="verdict-banner" id="verdictBanner"></div>
+        </div>
+
+        <div class="scenario-detail" id="detail-normal">
+            <h3>Comportamiento Normal</h3>
+            <div class="detail-grid">
+                <div class="detail-item"><span class="detail-label">Consultas</span><span class="detail-value" id="n-queries">--</span></div>
+                <div class="detail-item"><span class="detail-label">Exitosas</span><span class="detail-value green" id="n-success">--</span></div>
+                <div class="detail-item"><span class="detail-label">Fallidas</span><span class="detail-value red" id="n-failed">--</span></div>
+                <div class="detail-item"><span class="detail-label">Duracion</span><span class="detail-value" id="n-duration">--</span></div>
+                <div class="detail-item"><span class="detail-label">Deteccion</span><span class="detail-value" id="n-detection">--</span></div>
+                <div class="detail-item"><span class="detail-label">Anomalia</span><span class="detail-value" id="n-anomaly">--</span></div>
+                <div class="detail-item"><span class="detail-label">Cumple &lt;1s</span><span class="detail-value" id="n-compliance">--</span></div>
+            </div>
+        </div>
+
+        <div class="scenario-detail" id="detail-massive">
+            <h3>Extraccion Masiva</h3>
+            <div class="detail-grid">
+                <div class="detail-item"><span class="detail-label">Consultas</span><span class="detail-value" id="m-queries">--</span></div>
+                <div class="detail-item"><span class="detail-label">Exitosas</span><span class="detail-value green" id="m-success">--</span></div>
+                <div class="detail-item"><span class="detail-label">Fallidas</span><span class="detail-value red" id="m-failed">--</span></div>
+                <div class="detail-item"><span class="detail-label">Duracion</span><span class="detail-value" id="m-duration">--</span></div>
+                <div class="detail-item"><span class="detail-label">Deteccion</span><span class="detail-value" id="m-detection">--</span></div>
+                <div class="detail-item"><span class="detail-label">Anomalia</span><span class="detail-value" id="m-anomaly">--</span></div>
+                <div class="detail-item"><span class="detail-label">Cumple &lt;1s</span><span class="detail-value" id="m-compliance">--</span></div>
+            </div>
+        </div>
+
+        <div class="scenario-detail" id="detail-gradual">
+            <h3>Escala Gradual</h3>
+            <div class="detail-grid">
+                <div class="detail-item"><span class="detail-label">Consultas</span><span class="detail-value" id="g-queries">--</span></div>
+                <div class="detail-item"><span class="detail-label">Exitosas</span><span class="detail-value green" id="g-success">--</span></div>
+                <div class="detail-item"><span class="detail-label">Fallidas</span><span class="detail-value red" id="g-failed">--</span></div>
+                <div class="detail-item"><span class="detail-label">Duracion</span><span class="detail-value" id="g-duration">--</span></div>
+                <div class="detail-item"><span class="detail-label">Deteccion</span><span class="detail-value" id="g-detection">--</span></div>
+                <div class="detail-item"><span class="detail-label">Anomalia</span><span class="detail-value" id="g-anomaly">--</span></div>
+                <div class="detail-item"><span class="detail-label">Cumple &lt;1s</span><span class="detail-value" id="g-compliance">--</span></div>
+            </div>
+        </div>
+
+        <div class="charts-grid">
+            <div class="chart-container">
+                <h4>Tiempo de Deteccion por Escenario</h4>
+                <div class="chart-wrapper">
+                    <canvas id="detectionTimeChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-container">
+                <h4>Consultas Procesadas</h4>
+                <div class="chart-wrapper">
+                    <canvas id="queriesChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-container">
+                <h4>Resultado por Escenario</h4>
+                <div class="chart-wrapper">
+                    <canvas id="scenarioResultChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-container">
+                <h4>Duracion Total</h4>
+                <div class="chart-wrapper">
+                    <canvas id="durationChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        const socket = io();
+        const SCENARIOS = [
+            { key: 'normal', label: 'Comportamiento Normal', queries: 50 },
+            { key: 'massive', label: 'Extraccion Masiva', queries: 200 },
+            { key: 'gradual', label: 'Escala Gradual', queries: 151 }
+        ];
+
+        function showToast(message, type) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast toast-' + type + ' show';
+            setTimeout(() => { toast.classList.remove('show'); }, 3500);
+        }
+
+        function setScenarioState(key, state, detail) {
+            const card = document.getElementById('card-' + key);
+            const icon = document.getElementById('icon-' + key);
+            const status = document.getElementById('status-' + key);
+            card.classList.remove('active', 'done', 'fail');
+            icon.classList.remove('pulse');
+            if (state === 'active') { card.classList.add('active'); icon.innerHTML = '&#9679;'; icon.classList.add('pulse'); status.textContent = 'En curso...'; status.style.color = '#2563eb'; }
+            else if (state === 'done') { card.classList.add('done'); icon.innerHTML = '&#10003;'; status.textContent = detail || 'Completado'; status.style.color = '#00d4aa'; }
+            else if (state === 'fail') { card.classList.add('fail'); icon.innerHTML = '&#10007;'; status.textContent = detail || 'Fallido'; status.style.color = '#ff4757'; }
+            else { icon.innerHTML = '&#9201;'; status.textContent = 'Pendiente'; status.style.color = '#8892b0'; }
+        }
+
+        function updateProgress(current, total, label) {
+            const pct = Math.round((current / total) * 100);
+            document.getElementById('progressContainer').style.display = 'block';
+            document.getElementById('progressLabel').textContent = label || ('Paso ' + current + '/' + total);
+            document.getElementById('progressPct').textContent = pct + '%';
+            document.getElementById('progressBar').style.width = pct + '%';
+        }
+
+        async function runAllExperiments() {
+            const btn = document.getElementById('btnRunAll');
+            btn.disabled = true;
+            btn.textContent = 'Ejecutando...';
+            btn.style.opacity = '0.6';
+
+            SCENARIOS.forEach(s => setScenarioState(s.key, 'pending'));
+            document.getElementById('verdictBanner').className = 'verdict-banner';
+            document.getElementById('verdictBanner').style.display = 'none';
+            updateProgress(0, 3, 'Iniciando experimentos...');
+
+            try {
+                const res = await fetch('/api/experiment/run-all', { method: 'POST' });
+                if (res.ok) {
+                    showToast('Experimentos iniciados - 3 escenarios en secuencia', 'success');
+                } else {
+                    showToast('Error al iniciar experimentos', 'error');
+                    btn.disabled = false; btn.textContent = 'Ejecutar Experimentos'; btn.style.opacity = '1';
+                }
+            } catch (err) {
+                showToast('Error de conexion', 'error');
+                btn.disabled = false; btn.textContent = 'Ejecutar Experimentos'; btn.style.opacity = '1';
+            }
+        }
+
+        function verificarServicios() {
+            fetch('/api/status').then(r => r.json()).then(data => {
+                ['cotizacion', 'monitor', 'autorizador', 'auth', 'dashboard'].forEach(s => {
+                    const dot = document.getElementById('dot-' + s);
+                    if (dot) dot.classList.toggle('offline', data[s] !== true);
+                });
+            }).catch(() => {});
+        }
+
+        const PREFIX = { normal: 'n', massive: 'm', gradual: 'g' };
+
+        function updateScenarioDetail(key, data) {
+            const p = PREFIX[key];
+            if (!p) return;
+            const queries = data.total_queries || 0;
+            const expected = { normal: 50, massive: 200, gradual: 151 }[key] || queries;
+            document.getElementById(p + '-queries').textContent = queries + '/' + expected;
+            document.getElementById(p + '-success').textContent = data.successful || 0;
+            document.getElementById(p + '-failed').textContent = data.failed || 0;
+            document.getElementById(p + '-duration').textContent = (data.duration_ms || 0) + ' ms';
+            document.getElementById(p + '-detection').textContent = (data.detection_time_ms || 0) + ' ms';
+            const anomalyEl = document.getElementById(p + '-anomaly');
+            if (data.is_anomalous !== undefined) {
+                anomalyEl.textContent = data.is_anomalous ? 'Si' : 'No';
+                anomalyEl.className = 'detail-value ' + (data.is_anomalous ? 'red' : 'green');
+            }
+            const compEl = document.getElementById(p + '-compliance');
+            if (data.meets_threshold !== undefined) {
+                compEl.textContent = data.meets_threshold ? 'Si' : 'No';
+                compEl.className = 'detail-value ' + (data.meets_threshold ? 'green' : 'red');
+            }
+            const detailEl = document.getElementById('detail-' + key);
+            detailEl.classList.remove('cumple', 'nocumple');
+            if (data.meets_threshold !== undefined) {
+                detailEl.classList.add(data.meets_threshold ? 'cumple' : 'nocumple');
+            }
+        }
+
+        let detectionTimeChart, queriesChart, scenarioResultChart, durationChart;
+
+        function initCharts() {
+            const defaults = {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { labels: { color: '#8892b0', font: { size: 11 } } } },
+                scales: {
+                    x: { ticks: { color: '#8892b0' }, grid: { color: 'rgba(136,146,176,0.1)' } },
+                    y: { ticks: { color: '#8892b0' }, grid: { color: 'rgba(136,146,176,0.1)' } }
+                }
+            };
+            detectionTimeChart = new Chart(document.getElementById('detectionTimeChart'), {
+                type: 'bar',
+                data: { labels: ['Normal','Masiva','Gradual'], datasets: [{ label: 'Deteccion (ms)', data: [0,0,0], backgroundColor: ['#00d4aa','#2563eb','#ff4757'], borderRadius: 6 }] },
+                options: { ...defaults }
+            });
+            queriesChart = new Chart(document.getElementById('queriesChart'), {
+                type: 'bar',
+                data: { labels: ['Normal','Masiva','Gradual'], datasets: [
+                    { label: 'Exitosas', data: [0,0,0], backgroundColor: '#00d4aa', borderRadius: 6 },
+                    { label: 'Fallidas', data: [0,0,0], backgroundColor: '#ff4757', borderRadius: 6 }
+                ]},
+                options: { ...defaults }
+            });
+            scenarioResultChart = new Chart(document.getElementById('scenarioResultChart'), {
+                type: 'doughnut',
+                data: { labels: ['Cumple','No Cumple','Pendiente'], datasets: [{ data: [0,0,3], backgroundColor: ['#00d4aa','#ff4757','#8892b0'], borderWidth: 0 }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#8892b0', font: { size: 11 }, padding: 16 } } } }
+            });
+            durationChart = new Chart(document.getElementById('durationChart'), {
+                type: 'line',
+                data: { labels: ['Normal','Masiva','Gradual'], datasets: [{ label: 'Duracion (ms)', data: [0,0,0], borderColor: '#00d4aa', backgroundColor: 'rgba(0,212,170,0.1)', tension: 0.4, fill: true, pointBackgroundColor: '#00d4aa', pointRadius: 5 }] },
+                options: { ...defaults }
+            });
+        }
+
+        function updateCharts(results) {
+            if (!results || !results.length) return;
+            const ordered = ['normal','massive','gradual'];
+            const data = ordered.map(k => results.find(r => r.scenario === k) || {});
+            detectionTimeChart.data.datasets[0].data = data.map(r => r.detection_time_ms || 0);
+            detectionTimeChart.update();
+            queriesChart.data.datasets[0].data = data.map(r => r.successful || 0);
+            queriesChart.data.datasets[1].data = data.map(r => r.failed || 0);
+            queriesChart.update();
+            durationChart.data.datasets[0].data = data.map(r => r.duration_ms || 0);
+            durationChart.update();
+            const cumple = data.filter(r => r.meets_threshold).length;
+            const nocumple = data.filter(r => !r.meets_threshold && r.scenario).length;
+            const pendiente = 3 - cumple - nocumple;
+            scenarioResultChart.data.datasets[0].data = [cumple, nocumple, Math.max(0, pendiente)];
+            scenarioResultChart.update();
+        }
+
+        socket.on('experiment_started', (data) => {
+            const idx = data.current || 1;
+            const key = data.scenario;
+            updateProgress(idx - 1, 3, 'Ejecutando: ' + (data.label || key));
+            SCENARIOS.forEach((s, i) => {
+                if (i < idx - 1) setScenarioState(s.key, 'done', 'Completado');
+                else if (s.key === key) setScenarioState(s.key, 'active');
+                else setScenarioState(s.key, 'pending');
+            });
+            showToast('(' + idx + '/3) ' + (data.label || key), 'info');
+        });
+
+        socket.on('experiment_finished', (data) => {
+            const key = data.scenario;
+            const det = data.detection_time_ms || 0;
+            const cumple = data.meets_threshold === 1;
+            const detail = (cumple ? 'Cumple' : 'No cumple') + ' - ' + det + 'ms deteccion';
+            setScenarioState(key, cumple ? 'done' : 'fail', detail);
+            updateScenarioDetail(key, data);
+
+            const completedCount = SCENARIOS.filter(s => {
+                const card = document.getElementById('card-' + s.key);
+                return card.classList.contains('done') || card.classList.contains('fail');
+            }).length;
+            updateProgress(completedCount, 3, 'Completado: ' + (data.label || key));
+        });
+
+        socket.on('experiment_all_finished', (data) => {
+            const banner = document.getElementById('verdictBanner');
+            const btn = document.getElementById('btnRunAll');
+            btn.disabled = false;
+            btn.textContent = 'Ejecutar Experimentos';
+            btn.style.opacity = '1';
+            updateProgress(3, 3, 'Todos los experimentos finalizados');
+
+            if (data.cumple) {
+                banner.className = 'verdict-banner cumple';
+                banner.innerHTML = '&#10003; CUMPLE - Todos los escenarios detectaron correctamente la anomalia en menos de 1 segundo';
+            } else {
+                banner.className = 'verdict-banner nocumple';
+                banner.innerHTML = '&#10007; NO CUMPLE - ' + data.message;
+            }
+            showToast(data.cumple ? 'CUMPLE' : 'NO CUMPLE', data.cumple ? 'success' : 'error');
+            updateCharts(data.results);
+        });
+
+        socket.on('anomaly_detected', (data) => {
+            showToast('Anomalia: ' + (data.message || ''), 'error');
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            verificarServicios();
+            initCharts();
+            setInterval(verificarServicios, 15000);
+        });
+    </script>
+
+</body>
+</html>

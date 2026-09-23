@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detección de Comportamiento Anómalo - Dashboard</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #0a0e27;
+            color: #ffffff;
+            min-height: 100vh;
+        }
+
+        .navbar {
+            background: #111631;
+            padding: 16px 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid rgba(0, 212, 170, 0.2);
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .navbar-left {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .navbar-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #ffffff;
+        }
+
+        .navbar-subtitle {
+            font-size: 0.8rem;
+            color: #8892b0;
+            margin-top: 2px;
+        }
+
+        .navbar-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .badge {
+            background: rgba(0, 212, 170, 0.15);
+            color: #00d4aa;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border: 1px solid rgba(0, 212, 170, 0.3);
+        }
+
+        .btn {
+            padding: 8px 18px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-cyan {
+            background: #00d4aa;
+            color: #0a0e27;
+            font-weight: 700;
+            padding: 10px 28px;
+            border-radius: 8px;
+        }
+
+        .btn-cyan:hover {
+            background: #00b894;
+            transform: translateY(-1px);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 32px 24px;
+        }
+
+        .forms-row {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 24px;
+            margin-bottom: 40px;
+        }
+
+        .form-card {
+            background: #111631;
+            border-radius: 12px;
+            padding: 28px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .form-card h3 {
+            font-size: 1rem;
+            margin-bottom: 20px;
+            color: #ffffff;
+            font-weight: 700;
+        }
+
+        .form-group {
+            margin-bottom: 14px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.75rem;
+            color: #8892b0;
+            margin-bottom: 6px;
+            font-weight: 500;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 10px 14px;
+            background: #0a0e27;
+            border: 1px solid rgba(136, 146, 176, 0.2);
+            border-radius: 8px;
+            color: #ffffff;
+            font-size: 0.85rem;
+            font-family: 'Segoe UI', sans-serif;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #00d4aa;
+        }
+
+        .form-card .btn-cyan {
+            width: 100%;
+            margin-top: 8px;
+        }
+
+        .table-section {
+            background: #111631;
+            border-radius: 12px;
+            padding: 28px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .table-section h3 {
+            font-size: 1rem;
+            margin-bottom: 18px;
+            color: #ffffff;
+            font-weight: 700;
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            text-align: left;
+            padding: 10px 14px;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #8892b0;
+            border-bottom: 1px solid rgba(136, 146, 176, 0.15);
+            font-weight: 600;
+        }
+
+        td {
+            padding: 10px 14px;
+            font-size: 0.8rem;
+            color: #ffffff;
+            border-bottom: 1px solid rgba(136, 146, 176, 0.08);
+        }
+
+        tr:hover td {
+            background: rgba(0, 212, 170, 0.03);
+        }
+
+        .hash-cell {
+            font-family: 'Courier New', monospace;
+            font-size: 0.7rem;
+            color: #8892b0;
+            max-width: 180px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .role-badge {
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            background: rgba(0, 212, 170, 0.12);
+            color: #00d4aa;
+        }
+
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            z-index: 9999;
+            transform: translateX(120%);
+            transition: transform 0.3s ease;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+        }
+
+        .toast.show {
+            transform: translateX(0);
+        }
+
+        .toast-success {
+            background: #00d4aa;
+            color: #0a0e27;
+        }
+
+        .toast-error {
+            background: #ff4757;
+            color: #ffffff;
+        }
+
+        .toast-info {
+            background: #2563eb;
+            color: #ffffff;
+        }
+
+        @media (max-width: 768px) {
+            .forms-row {
+                grid-template-columns: 1fr;
+            }
+            .navbar {
+                flex-direction: column;
+                gap: 12px;
+                padding: 16px;
+            }
+            .navbar-right {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar">
+        <div class="navbar-left">
+            <div class="navbar-title">Experimento: Deteccion de Comportamiento Anomalo</div>
+            <div class="navbar-subtitle">Modulo 7 - Seguridad | Arquitecturas Agiles</div>
+        </div>
+        <div class="navbar-right">
+            <span class="badge">ASR-12 Confidencialidad</span>
+        </div>
+    </nav>
+
+    <div class="container">
+
+        <div class="forms-row">
+            <div class="form-card">
+                <h3>Registro de Administrador</h3>
+                <form id="registerForm" onsubmit="registrarUsuario(event)">
+                    <div class="form-group">
+                        <label for="reg-nombre">Nombre</label>
+                        <input type="text" id="reg-nombre" placeholder="Tu nombre completo" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="reg-email">Email</label>
+                        <input type="email" id="reg-email" placeholder="admin@ejemplo.com" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="reg-password">Contrasena</label>
+                        <input type="password" id="reg-password" placeholder="Minimo 6 caracteres" required>
+                    </div>
+                    <button type="submit" class="btn btn-cyan">Registrarse</button>
+                </form>
+            </div>
+
+            <div class="form-card">
+                <h3>Iniciar Sesion</h3>
+                <form id="loginForm" onsubmit="iniciarSesion(event)">
+                    <div class="form-group">
+                        <label for="login-email">Email</label>
+                        <input type="email" id="login-email" placeholder="admin@ejemplo.com" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="login-password">Contrasena</label>
+                        <input type="password" id="login-password" placeholder="Tu contrasena" required>
+                    </div>
+                    <button type="submit" class="btn btn-cyan">Iniciar Sesion</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="table-section">
+            <h3>Usuarios Registrados</h3>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Nombre</th>
+                            <th>Email</th>
+                            <th>Hash</th>
+                            <th>Rol</th>
+                            <th>Fecha</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usersTableBody">
+                        <tr>
+                            <td colspan="6" style="text-align:center;color:#8892b0;padding:24px;">Cargando usuarios...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        function showToast(message, type) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast toast-' + type + ' show';
+            setTimeout(() => { toast.classList.remove('show'); }, 3500);
+        }
+
+        async function registrarUsuario(e) {
+            e.preventDefault();
+            const nombre = document.getElementById('reg-nombre').value;
+            const email = document.getElementById('reg-email').value;
+            const password = document.getElementById('reg-password').value;
+            try {
+                const res = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: nombre, email, password })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showToast('Usuario registrado exitosamente', 'success');
+                    document.getElementById('registerForm').reset();
+                    setTimeout(() => { window.location.href = '/dashboard'; }, 800);
+                } else {
+                    showToast(data.error || 'Error al registrar', 'error');
+                }
+            } catch (err) {
+                showToast('Error de conexion', 'error');
+            }
+        }
+
+        async function iniciarSesion(e) {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            try {
+                const res = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showToast('Sesion iniciada correctamente', 'success');
+                    document.getElementById('loginForm').reset();
+                    setTimeout(() => { window.location.href = '/dashboard'; }, 800);
+                } else {
+                    showToast(data.error || 'Credenciales incorrectas', 'error');
+                }
+            } catch (err) {
+                showToast('Error de conexion', 'error');
+            }
+        }
+
+        async function cargarUsuarios() {
+            try {
+                const res = await fetch('/api/users');
+                const users = await res.json();
+                const tbody = document.getElementById('usersTableBody');
+                if (!users.length) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#8892b0;padding:24px;">No hay usuarios registrados</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = users.map(u => `
+                    <tr>
+                        <td>${u.id}</td>
+                        <td>${u.name}</td>
+                        <td>${u.email}</td>
+                        <td class="hash-cell" title="Hash enmascarado">****</td>
+                        <td><span class="role-badge">${u.role}</span></td>
+                        <td>${u.created_at}</td>
+                    </tr>
+                `).join('');
+            } catch (err) {
+                document.getElementById('usersTableBody').innerHTML =
+                    '<tr><td colspan="6" style="text-align:center;color:#ff4757;padding:24px;">Error al cargar usuarios</td></tr>';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            cargarUsuarios();
+        });
+    </script>
+
+</body>
+</html>
