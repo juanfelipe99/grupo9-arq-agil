@@ -5,17 +5,23 @@ y detecta comportamiento anomalo.
 """
 
 import os
+import sys
 import time
 import threading
 import sqlite3
 from flask import Flask, request, jsonify
 
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
+
+from config import ANOMALY_THRESHOLD as DEFAULT_THRESHOLD
+
 app = Flask(__name__)
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATABASE = os.path.join(BASE_DIR, 'data', 'experiment.db')
 
-ANOMALY_THRESHOLD = 150
+ANOMALY_THRESHOLD = DEFAULT_THRESHOLD
 
 user_history = {}
 lock = threading.Lock()
@@ -71,6 +77,21 @@ def registrar():
     })
 
 
+@app.route('/config', methods=['POST'])
+def set_config():
+    global ANOMALY_THRESHOLD
+    data = request.json or {}
+    try:
+        umbral = int(data.get('umbral', ANOMALY_THRESHOLD))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Umbral invalido"}), 400
+    if umbral < 1 or umbral > 10000:
+        return jsonify({"error": "Umbral fuera de rango (1-10000)"}), 400
+    with lock:
+        ANOMALY_THRESHOLD = umbral
+    return jsonify({"umbral": ANOMALY_THRESHOLD})
+
+
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({'status': 'ok', 'componente': 'monitor',
@@ -79,4 +100,4 @@ def health():
 
 if __name__ == '__main__':
     print("[Monitor] Microservicio corriendo en puerto 5003")
-    app.run(host='0.0.0.0', port=5003)
+    app.run(host='0.0.0.0', port=5003, threaded=True, use_reloader=False)

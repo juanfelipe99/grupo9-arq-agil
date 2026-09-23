@@ -13,11 +13,52 @@ import requests
 from flask import Flask, request, jsonify, render_template
 from flask_socketio import SocketIO
 
-from config import SERVICES, DASHBOARD_PORT
+from config import (SERVICES, DASHBOARD_PORT, BASELINE_QPM,
+                    ANOMALY_THRESHOLD, SCENARIO_DEFAULTS)
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'h710-experiment-secret-key-2024'
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+
+
+# =============================================================================
+# PARAMETROS CONFIGURABLES DEL EXPERIMENTO
+# =============================================================================
+def _to_int(value, default, minimo=1, maximo=10000):
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return default
+    return max(minimo, min(maximo, number))
+
+
+def _to_float(value, default, minimo=0.001, maximo=60.0):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return default
+    return max(minimo, min(maximo, number))
+
+
+def _scenario_params(scenario, overrides=None):
+    base = SCENARIO_DEFAULTS.get(scenario, {}).copy()
+    overrides = overrides or {}
+    return {
+        'num_queries': _to_int(overrides.get('num_queries'),
+                               base.get('num_queries', 50)),
+        'delay': _to_float(overrides.get('delay'), base.get('delay', 1.0)),
+        'decay': _to_float(overrides.get('decay'), base.get('decay', 0.95),
+                           minimo=0.5, maximo=1.0),
+        'label': base.get('label', scenario),
+    }
+
+
+def _apply_threshold(threshold):
+    try:
+        requests.post(f"{SERVICES['monitor']}/config",
+                      json={"umbral": threshold}, timeout=5)
+    except Exception as e:
+        print(f"[Experiment] No se pudo propagar umbral: {e}")
 
 
 # =============================================================================
@@ -99,13 +140,19 @@ def proxy_quote():
 # =============================================================================
 @app.route('/api/status', methods=['GET'])
 def get_status():
-    status = {}
-    for name, url in SERVICES.items():
+    from concurrent.futures import ThreadPoolExecutor
+
+    def check(item):
+        name, url = item
         try:
-            resp = requests.get(f"{url}/health", timeout=3)
-            status[name] = resp.json().get('status') == 'ok'
+            resp = requests.get(f"{url}/health", timeout=1)
+            return name, resp.json().get('status') == 'ok'
         except Exception:
-            status[name] = False
+            return name, False
+
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        results = pool.map(check, SERVICES.items())
+    status = dict(results)
     status['dashboard'] = True
     return jsonify(status)
 
@@ -113,25 +160,30 @@ def get_status():
 # =============================================================================
 # API - Experimento
 # =============================================================================
+@app.route('/api/experiment/config', methods=['GET'])
+def get_experiment_config():
+    return jsonify({
+        "baseline_qpm": BASELINE_QPM,
+        "threshold_qpm": ANOMALY_THRESHOLD,
+        "scenarios": SCENARIO_DEFAULTS,
+    })
+
+
 @app.route('/api/experiment/run', methods=['POST'])
 def run_experiment():
-    data = request.json
+    data = request.json or {}
     scenario = data.get('scenario', 'normal')
+    params = _scenario_params(scenario, data)
+    threshold = _to_int(data.get('threshold_qpm'), ANOMALY_THRESHOLD)
+    if scenario not in SCENARIO_DEFAULTS:
+        return jsonify({"error": f"Escenario desconocido: {scenario}"}), 400
+    _apply_threshold(threshold)
 
     def run_simulation():
         print(f"[Experiment] Iniciando escenario: {scenario}")
         time.sleep(1)
-        num_queries = 0
-        delay_between = 0
-        if scenario == 'normal':
-            num_queries = 50
-            delay_between = 1.5
-        elif scenario == 'massive':
-            num_queries = 200
-            delay_between = 0.01
-        elif scenario == 'gradual':
-            num_queries = 151
-            delay_between = 0.1
+        num_queries = params['num_queries']
+        delay_between = params['delay']
 
         start_time = time.time()
         success_count = 0
@@ -169,7 +221,7 @@ def run_experiment():
 
         for i in range(num_queries):
             if scenario == 'gradual':
-                delay_between *= 0.95
+                delay_between *= params.get('decay', 0.95)
             time.sleep(delay_between)
 
             # Llamar a cotizacion via HTTP
@@ -216,18 +268,23 @@ def run_experiment():
 
     threading.Thread(target=run_simulation, daemon=True).start()
     return jsonify({
-        "message": "Experimento iniciado", "scenario": scenario
+        "message": "Experimento iniciado", "scenario": scenario,
+        "num_queries": params['num_queries'], "delay": params['delay'],
+        "threshold_qpm": threshold,
     })
 
 
 @app.route('/api/experiment/run-all', methods=['POST'])
 def run_all_experiments():
+    data = request.json or {}
+    threshold = _to_int(data.get('threshold_qpm'), ANOMALY_THRESHOLD)
+    overrides = data.get('scenarios', {})
     SCENARIOS = ['normal', 'massive', 'gradual']
     SCENARIO_PARAMS = {
-        'normal': {'num_queries': 50, 'delay': 1.5, 'label': 'Comportamiento Normal'},
-        'massive': {'num_queries': 200, 'delay': 0.01, 'label': 'Extraccion Masiva'},
-        'gradual': {'num_queries': 151, 'delay': 0.1, 'label': 'Escala Gradual'},
+        key: _scenario_params(key, (overrides.get(key) or {}))
+        for key in SCENARIOS
     }
+    _apply_threshold(threshold)
 
     def run_all():
         results = []
@@ -276,7 +333,7 @@ def run_all_experiments():
 
             for i in range(num_queries):
                 if scenario == 'gradual':
-                    delay_between *= 0.95
+                    delay_between *= params.get('decay', 0.95)
                 time.sleep(delay_between)
                 try:
                     cot_resp = requests.get(
@@ -332,7 +389,8 @@ def run_all_experiments():
         print(f"[Experiment] Veredicto: {'CUMPLE' if all_meet else 'NO CUMPLE'}")
 
     threading.Thread(target=run_all, daemon=True).start()
-    return jsonify({"message": "Experimentos iniciados", "total": 3})
+    return jsonify({"message": "Experimentos iniciados", "total": 3,
+                    "threshold_qpm": threshold, "scenarios": SCENARIO_PARAMS})
 
 
 @app.route('/api/experiment/results', methods=['GET'])
