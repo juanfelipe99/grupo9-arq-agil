@@ -8,6 +8,17 @@ import time
 import sqlite3
 from flask import Flask, request, jsonify
 
+from db import abrir, conectar
+
+import logging
+
+logging.getLogger('werkzeug').setLevel(logging.ERROR)
+try:
+    from flask import cli as _cli
+    _cli.show_server_banner = lambda *a, **k: None
+except Exception:
+    pass
+
 app = Flask(__name__)
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -17,9 +28,7 @@ blocked_sessions = set()
 
 
 def get_db():
-    db = sqlite3.connect(DATABASE, check_same_thread=False)
-    db.row_factory = sqlite3.Row
-    return db
+    return conectar(DATABASE)
 
 
 @app.route('/revocar', methods=['POST'])
@@ -30,13 +39,12 @@ def revocar():
 
     blocked_sessions.add(session_id)
     try:
-        db = get_db()
-        db.execute(
-            "UPDATE sessions SET status='Revocada', is_anomalous=1 WHERE id=?",
-            (session_id,)
-        )
-        db.commit()
-        db.close()
+        with abrir(DATABASE) as db:
+            db.execute(
+                "UPDATE sessions SET status='Revocada', is_anomalous=1 WHERE id=?",
+                (session_id,)
+            )
+            db.commit()
     except Exception as e:
         print(f"[Autorizador] Error DB: {e}")
 
@@ -64,5 +72,4 @@ def health():
 
 
 if __name__ == '__main__':
-    print("[Autorizador] Microservicio corriendo en puerto 5004")
     app.run(host='0.0.0.0', port=5004)
