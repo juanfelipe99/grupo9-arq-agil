@@ -389,8 +389,9 @@ def health():
 if __name__ == '__main__':
     init_baselines()
     print(f"[Monitor] modelo: habitual {BASELINE_INICIAL} qpm x factor {FACTOR} "
-          f"= {min(ANOMALY_THRESHOLD, BASELINE_INICIAL * FACTOR):.0f} para usuarios "
-          f"sin historial (suelo {UMBRAL_MINIMO}, techo {ANOMALY_THRESHOLD}, "
+          f"= {BASELINE_INICIAL * FACTOR:.0f} para usuarios sin historial "
+          f"(el umbral aprende entre {BASELINE_MINIMO * FACTOR:.0f} y "
+          f"{BASELINE_MAXIMO * FACTOR:.0f}, suelo {UMBRAL_MINIMO}, "
           f"ventana {VENTANA_SEGUNDOS}s)")
     if modo() == 'redis':
         threading.Thread(target=behavior_worker, daemon=True).start()
