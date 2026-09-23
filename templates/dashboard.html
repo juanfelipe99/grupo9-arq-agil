@@ -86,6 +86,12 @@
             box-shadow: 0 0 6px rgba(255, 71, 87, 0.6);
         }
 
+        .status-dot.starting {
+            background: #f5a623;
+            box-shadow: 0 0 6px rgba(245, 166, 35, 0.6);
+            animation: pulse-dot 1s ease-in-out infinite;
+        }
+
         .navbar-actions {
             display: flex;
             gap: 10px;
@@ -177,6 +183,102 @@
             padding: 28px;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
             margin-bottom: 24px;
+        }
+
+        .params-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .param-groups-2 {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .param-group {
+            background: #0a0e27;
+            border: 1px solid rgba(136, 146, 176, 0.15);
+            border-radius: 10px;
+            padding: 16px;
+        }
+
+        .param-group h4 {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: #00d4aa;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 12px;
+        }
+
+        .param-group .params-grid {
+            grid-template-columns: repeat(2, 1fr);
+            margin-bottom: 0;
+        }
+
+        .scenario-subgrid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+
+        .scenario-sub h5 {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #ffffff;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .scenario-sub .param-field {
+            margin-bottom: 10px;
+        }
+
+        .scenario-sub .param-field:last-child {
+            margin-bottom: 0;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .param-field label {
+            display: block;
+            font-size: 0.7rem;
+            color: #8892b0;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 6px;
+            font-weight: 600;
+        }
+
+        .param-field input {
+            width: 100%;
+            padding: 10px 12px;
+            background: #0a0e27;
+            border: 1px solid rgba(136, 146, 176, 0.2);
+            border-radius: 8px;
+            color: #ffffff;
+            font-size: 0.85rem;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        .param-field input:focus {
+            outline: none;
+            border-color: #00d4aa;
+        }
+
+        .param-hint {
+            font-size: 0.7rem;
+            color: #8892b0;
+            margin-top: 4px;
+            min-height: 14px;
         }
 
         .run-all-header {
@@ -575,6 +677,8 @@
 
         @media (max-width: 900px) {
             .charts-grid { grid-template-columns: 1fr; }
+            .params-grid { grid-template-columns: repeat(2, 1fr); }
+            .param-groups-2 { grid-template-columns: 1fr; }
             .realtime-section { grid-template-columns: 1fr; text-align: center; }
             .realtime-center { justify-content: center; }
             .realtime-right { text-align: center; }
@@ -586,6 +690,7 @@
 
         @media (max-width: 600px) {
             .detail-grid { grid-template-columns: repeat(2, 1fr); }
+            .scenario-subgrid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -614,6 +719,76 @@
 
         <div class="run-all-section">
             <div class="run-all-header">
+                <h3>Parametros iniciales</h3>
+                <div class="header-actions">
+                    <span class="progress-label" id="qpmHint">delay ≈ 60 / qpm</span>
+                    <button class="btn btn-green" id="btnDefaults" onclick="loadExperimentConfig()">Restablecer</button>
+                </div>
+            </div>
+            <div class="param-groups-2">
+                <div class="param-group">
+                    <h4>Deteccion</h4>
+                    <div class="params-grid">
+                        <div class="param-field">
+                            <label for="in-baseline">Baseline (consultas/min)</label>
+                            <input type="number" id="in-baseline" min="1" max="10000" value="50">
+                            <div class="param-hint" id="hint-baseline"></div>
+                        </div>
+                        <div class="param-field">
+                            <label for="in-threshold">Umbral anomalia (cons/min)</label>
+                            <input type="number" id="in-threshold" min="1" max="10000" value="150">
+                            <div class="param-hint" id="hint-threshold">3x baseline → anomala</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="param-group">
+                    <h4>Escenarios</h4>
+                    <div class="scenario-subgrid">
+                        <div class="scenario-sub">
+                            <h5>Normal</h5>
+                            <div class="param-field">
+                                <label for="in-normal-q">Consultas</label>
+                                <input type="number" id="in-normal-q" min="1" max="10000" value="50">
+                            </div>
+                            <div class="param-field">
+                                <label for="in-normal-d">Delay (s)</label>
+                                <input type="number" id="in-normal-d" min="0.001" max="60" step="0.001" value="1.5">
+                                <div class="param-hint" id="hint-normal"></div>
+                            </div>
+                        </div>
+                        <div class="scenario-sub">
+                            <h5>Masiva</h5>
+                            <div class="param-field">
+                                <label for="in-massive-q">Consultas</label>
+                                <input type="number" id="in-massive-q" min="1" max="10000" value="200">
+                            </div>
+                            <div class="param-field">
+                                <label for="in-massive-d">Delay (s)</label>
+                                <input type="number" id="in-massive-d" min="0.001" max="60" step="0.001" value="0.01">
+                                <div class="param-hint" id="hint-massive"></div>
+                            </div>
+                        </div>
+                        <div class="scenario-sub">
+                            <h5>Gradual</h5>
+                            <div class="param-field">
+                                <label for="in-gradual-q">Consultas</label>
+                                <input type="number" id="in-gradual-q" min="1" max="10000" value="151">
+                            </div>
+                            <div class="param-field">
+                                <label for="in-gradual-d">Delay inicial (s)</label>
+                                <input type="number" id="in-gradual-d" min="0.001" max="60" step="0.001" value="0.1">
+                                <div class="param-hint" id="hint-gradual"></div>
+                            </div>
+                            <div class="param-field">
+                                <label for="in-gradual-decay">Decaimiento</label>
+                                <input type="number" id="in-gradual-decay" min="0.5" max="1" step="0.001" value="0.95">
+                                <div class="param-hint">delay × factor / consulta</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="run-all-header">
                 <h3>Experimento de Deteccion de Anomalias</h3>
                 <button class="btn btn-green" id="btnRunAll" onclick="runAllExperiments()">Ejecutar Experimentos</button>
             </div>
@@ -631,19 +806,19 @@
                     <div class="scenario-card-icon" id="icon-normal">&#9201;</div>
                     <div class="scenario-card-title">Comportamiento Normal</div>
                     <div class="scenario-card-status" id="status-normal">Pendiente</div>
-                    <div class="scenario-card-detail">50 consultas / 1.5s delay</div>
+                    <div class="scenario-card-detail" id="detail-line-normal">50 consultas / 1.5s delay</div>
                 </div>
                 <div class="scenario-card" id="card-massive">
                     <div class="scenario-card-icon" id="icon-massive">&#9201;</div>
                     <div class="scenario-card-title">Extraccion Masiva</div>
                     <div class="scenario-card-status" id="status-massive">Pendiente</div>
-                    <div class="scenario-card-detail">200 consultas / 0.01s delay</div>
+                    <div class="scenario-card-detail" id="detail-line-massive">200 consultas / 0.01s delay</div>
                 </div>
                 <div class="scenario-card" id="card-gradual">
                     <div class="scenario-card-icon" id="icon-gradual">&#9201;</div>
                     <div class="scenario-card-title">Escala Gradual</div>
                     <div class="scenario-card-status" id="status-gradual">Pendiente</div>
-                    <div class="scenario-card-detail">151 consultas / delay decreciente</div>
+                    <div class="scenario-card-detail" id="detail-line-gradual">151 consultas / delay decreciente</div>
                 </div>
             </div>
             <div class="verdict-banner" id="verdictBanner"></div>
@@ -721,11 +896,115 @@
 
     <script>
         const socket = io();
-        const SCENARIOS = [
+        let SCENARIOS = [
             { key: 'normal', label: 'Comportamiento Normal', queries: 50 },
             { key: 'massive', label: 'Extraccion Masiva', queries: 200 },
             { key: 'gradual', label: 'Escala Gradual', queries: 151 }
         ];
+
+        function val(id, fallback) {
+            const el = document.getElementById(id);
+            const raw = el ? String(el.value).replace(',', '.') : '';
+            const n = parseFloat(raw);
+            return isNaN(n) ? fallback : n;
+        }
+
+        function readFormState() {
+            return {
+                baseline_qpm: Math.round(val('in-baseline', 50)),
+                threshold_qpm: Math.round(val('in-threshold', 150)),
+                scenarios: {
+                    normal: { num_queries: Math.round(val('in-normal-q', 50)), delay: val('in-normal-d', 1.5) },
+                    massive: { num_queries: Math.round(val('in-massive-q', 200)), delay: val('in-massive-d', 0.01) },
+                    gradual: { num_queries: Math.round(val('in-gradual-q', 151)), delay: val('in-gradual-d', 0.1), decay: val('in-gradual-decay', 0.95) }
+                }
+            };
+        }
+
+        function qpmHint(delay) {
+            if (!delay || delay <= 0) return '';
+            return '≈ ' + Math.round(60 / delay) + ' cons/min';
+        }
+
+        function refreshHints() {
+            const b = val('in-baseline', 50);
+            document.getElementById('hint-baseline').textContent = b > 0 ? 'delay ref: ' + (60 / b).toFixed(2) + 's' : '';
+            const nd = val('in-normal-d', 1.5), md = val('in-massive-d', 0.01), gd = val('in-gradual-d', 0.1);
+            document.getElementById('hint-normal').textContent = qpmHint(nd);
+            document.getElementById('hint-massive').textContent = qpmHint(md);
+            document.getElementById('hint-gradual').textContent = qpmHint(gd) + ' decreciente';
+            const nq = Math.round(val('in-normal-q', 50)), mq = Math.round(val('in-massive-q', 200)), gq = Math.round(val('in-gradual-q', 151));
+            const nl = document.getElementById('detail-line-normal');
+            const ml = document.getElementById('detail-line-massive');
+            const gl = document.getElementById('detail-line-gradual');
+            if (nl) nl.textContent = nq + ' consultas / ' + nd + 's delay';
+            if (ml) ml.textContent = mq + ' consultas / ' + md + 's delay';
+            if (gl) gl.textContent = gq + ' consultas / delay decreciente';
+        }
+
+        const PREFIX = { normal: 'n', massive: 'm', gradual: 'g' };
+
+        function refreshLive() {
+            refreshHints();
+            const state = readFormState();
+            SCENARIOS = [
+                { key: 'normal', label: 'Comportamiento Normal', queries: state.scenarios.normal.num_queries },
+                { key: 'massive', label: 'Extraccion Masiva', queries: state.scenarios.massive.num_queries },
+                { key: 'gradual', label: 'Escala Gradual', queries: state.scenarios.gradual.num_queries }
+            ];
+            // Denominador esperado en vivo en los paneles (conserva numerador del ultimo run o --)
+            for (const [key, p] of Object.entries(PREFIX)) {
+                const cell = document.getElementById(p + '-queries');
+                if (!cell) continue;
+                const current = (cell.textContent || '').split('/');
+                const num = (current[0] || '').trim() || '--';
+                cell.textContent = num + '/' + state.scenarios[key].num_queries;
+            }
+            // Ratio umbral/baseline en vivo
+            const ratioEl = document.getElementById('hint-threshold');
+            if (ratioEl && state.baseline_qpm > 0) {
+                ratioEl.textContent = (state.threshold_qpm / state.baseline_qpm).toFixed(1) + 'x baseline → anomala';
+            }
+        }
+
+        function collectParams() {
+            const threshold = Math.round(val('in-threshold', 150));
+            const baseline = Math.round(val('in-baseline', 50));
+            if (threshold < 1 || threshold > 10000) { showToast('Umbral fuera de rango (1-10000)', 'error'); return null; }
+            if (baseline < 1 || baseline > 10000) { showToast('Baseline fuera de rango (1-10000)', 'error'); return null; }
+            if (threshold <= baseline) { showToast('El umbral debe ser mayor que el baseline', 'error'); return null; }
+            const scenarios = {
+                normal: { num_queries: Math.round(val('in-normal-q', 50)), delay: val('in-normal-d', 1.5) },
+                massive: { num_queries: Math.round(val('in-massive-q', 200)), delay: val('in-massive-d', 0.01) },
+                gradual: { num_queries: Math.round(val('in-gradual-q', 151)), delay: val('in-gradual-d', 0.1), decay: val('in-gradual-decay', 0.95) }
+            };
+            for (const [k, p] of Object.entries(scenarios)) {
+                if (p.num_queries < 1 || p.num_queries > 10000 || p.delay < 0.001 || p.delay > 60) {
+                    showToast('Parametros invalidos en escenario ' + k, 'error');
+                    return null;
+                }
+            }
+            if (scenarios.gradual.decay < 0.5 || scenarios.gradual.decay > 1) {
+                showToast('Decaimiento debe estar entre 0.5 y 1', 'error');
+                return null;
+            }
+            return { baseline_qpm: baseline, threshold_qpm: threshold, scenarios };
+        }
+
+        async function loadExperimentConfig() {
+            try {
+                const res = await fetch('/api/experiment/config');
+                if (!res.ok) return;
+                const cfg = await res.json();
+                document.getElementById('in-baseline').value = cfg.baseline_qpm ?? 50;
+                document.getElementById('in-threshold').value = cfg.threshold_qpm ?? 150;
+                const sc = cfg.scenarios || {};
+                if (sc.normal) { document.getElementById('in-normal-q').value = sc.normal.num_queries; document.getElementById('in-normal-d').value = sc.normal.delay; }
+                if (sc.massive) { document.getElementById('in-massive-q').value = sc.massive.num_queries; document.getElementById('in-massive-d').value = sc.massive.delay; }
+                if (sc.gradual) { document.getElementById('in-gradual-q').value = sc.gradual.num_queries; document.getElementById('in-gradual-d').value = sc.gradual.delay; document.getElementById('in-gradual-decay').value = sc.gradual.decay ?? 0.95; }
+                refreshLive();
+            } catch (err) { /* usa defaults del HTML */ }
+        }
 
         function showToast(message, type) {
             const toast = document.getElementById('toast');
@@ -754,47 +1033,124 @@
             document.getElementById('progressBar').style.width = pct + '%';
         }
 
+        let RUN_SNAPSHOT = null;
+
+        function configLineText(key, scenarios) {
+            const sc = (scenarios || {})[key] || {};
+            const nq = sc.num_queries ?? '--';
+            if (key === 'gradual') return nq + ' consultas / delay decreciente';
+            return nq + ' consultas / ' + (sc.delay ?? '--') + 's delay';
+        }
+
+        function restoreConfigLines(scenarios) {
+            const src = scenarios || RUN_SNAPSHOT || readFormState().scenarios;
+            ['normal', 'massive', 'gradual'].forEach(key => {
+                const line = document.getElementById('detail-line-' + key);
+                if (line) line.textContent = configLineText(key, src);
+            });
+        }
+
+        function clearScenarioPanel(key) {
+            const p = PREFIX[key];
+            if (!p) return;
+            ['queries', 'success', 'failed', 'duration', 'detection', 'anomaly', 'compliance'].forEach(f => {
+                const cell = document.getElementById(p + '-' + f);
+                if (cell) { cell.textContent = '--'; cell.className = 'detail-value'; }
+            });
+            const detailEl = document.getElementById('detail-' + key);
+            if (detailEl) detailEl.classList.remove('cumple', 'nocumple');
+        }
+
+        function resetCharts() {
+            if (!detectionTimeChart) return;
+            detectionTimeChart.data.datasets[0].data = [0, 0, 0];
+            detectionTimeChart.update();
+            queriesChart.data.datasets[0].data = [0, 0, 0];
+            queriesChart.data.datasets[1].data = [0, 0, 0];
+            queriesChart.update();
+            durationChart.data.datasets[0].data = [0, 0, 0];
+            durationChart.update();
+            scenarioResultChart.data.datasets[0].data = [0, 0, 3];
+            scenarioResultChart.update();
+        }
+
+        function clearExecutionUI() {
+            SCENARIOS.forEach(s => {
+                setScenarioState(s.key, 'pending');
+                const line = document.getElementById('detail-line-' + s.key);
+                if (line) line.textContent = '…';
+            });
+            Object.keys(PREFIX).forEach(clearScenarioPanel);
+            resetCharts();
+        }
+
         async function runAllExperiments() {
             const btn = document.getElementById('btnRunAll');
+            const params = collectParams();
+            if (!params) return;
+            SCENARIOS = [
+                { key: 'normal', label: 'Comportamiento Normal', queries: params.scenarios.normal.num_queries },
+                { key: 'massive', label: 'Extraccion Masiva', queries: params.scenarios.massive.num_queries },
+                { key: 'gradual', label: 'Escala Gradual', queries: params.scenarios.gradual.num_queries }
+            ];
+            refreshLive();
+            RUN_SNAPSHOT = params.scenarios;
             btn.disabled = true;
             btn.textContent = 'Ejecutando...';
             btn.style.opacity = '0.6';
 
-            SCENARIOS.forEach(s => setScenarioState(s.key, 'pending'));
+            clearExecutionUI();
             document.getElementById('verdictBanner').className = 'verdict-banner';
             document.getElementById('verdictBanner').style.display = 'none';
             updateProgress(0, 3, 'Iniciando experimentos...');
 
             try {
-                const res = await fetch('/api/experiment/run-all', { method: 'POST' });
+                const res = await fetch('/api/experiment/run-all', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(params) });
                 if (res.ok) {
-                    showToast('Experimentos iniciados - 3 escenarios en secuencia', 'success');
+                    const started = await res.json().catch(() => ({}));
+                    showToast('Experimentos iniciados - umbral ' + (started.threshold_qpm || params.threshold_qpm) + '/min', 'success');
                 } else {
                     showToast('Error al iniciar experimentos', 'error');
+                    restoreConfigLines();
                     btn.disabled = false; btn.textContent = 'Ejecutar Experimentos'; btn.style.opacity = '1';
                 }
             } catch (err) {
                 showToast('Error de conexion', 'error');
+                restoreConfigLines();
                 btn.disabled = false; btn.textContent = 'Ejecutar Experimentos'; btn.style.opacity = '1';
             }
         }
 
+        const pageLoadTime = Date.now();
+
         function verificarServicios() {
             fetch('/api/status').then(r => r.json()).then(data => {
+                const warmingUp = (Date.now() - pageLoadTime) < 60000;
                 ['cotizacion', 'monitor', 'autorizador', 'auth', 'dashboard'].forEach(s => {
                     const dot = document.getElementById('dot-' + s);
-                    if (dot) dot.classList.toggle('offline', data[s] !== true);
+                    if (!dot) return;
+                    dot.classList.remove('offline', 'starting');
+                    if (data[s] !== true) {
+                        dot.classList.add(warmingUp ? 'starting' : 'offline');
+                        dot.title = warmingUp ? s + ': iniciando...' : s + ': sin conexion';
+                    } else {
+                        dot.title = s + ': en linea';
+                    }
                 });
             }).catch(() => {});
         }
 
-        const PREFIX = { normal: 'n', massive: 'm', gradual: 'g' };
+        function scheduleVerificacion() {
+            verificarServicios();
+            const warmingUp = (Date.now() - pageLoadTime) < 60000;
+            setTimeout(scheduleVerificacion, warmingUp ? 3000 : 15000);
+        }
 
         function updateScenarioDetail(key, data) {
             const p = PREFIX[key];
             if (!p) return;
             const queries = data.total_queries || 0;
-            const expected = { normal: 50, massive: 200, gradual: 151 }[key] || queries;
+            const expected = (SCENARIOS.find(s => s.key === key) || {}).queries || queries;
             document.getElementById(p + '-queries').textContent = queries + '/' + expected;
             document.getElementById(p + '-success').textContent = data.successful || 0;
             document.getElementById(p + '-failed').textContent = data.failed || 0;
@@ -875,9 +1231,14 @@
             const idx = data.current || 1;
             const key = data.scenario;
             updateProgress(idx - 1, 3, 'Ejecutando: ' + (data.label || key));
-            SCENARIOS.forEach((s, i) => {
-                if (i < idx - 1) setScenarioState(s.key, 'done', 'Completado');
-                else if (s.key === key) setScenarioState(s.key, 'active');
+            const line = document.getElementById('detail-line-' + key);
+            if (line) line.textContent = configLineText(key, RUN_SNAPSHOT);
+            clearScenarioPanel(key);
+            SCENARIOS.forEach((s) => {
+                const card = document.getElementById('card-' + s.key);
+                const finished = card && (card.classList.contains('done') || card.classList.contains('fail'));
+                if (finished) return;
+                if (s.key === key) setScenarioState(s.key, 'active');
                 else setScenarioState(s.key, 'pending');
             });
             showToast('(' + idx + '/3) ' + (data.label || key), 'info');
@@ -924,7 +1285,13 @@
         document.addEventListener('DOMContentLoaded', () => {
             verificarServicios();
             initCharts();
-            setInterval(verificarServicios, 15000);
+            loadExperimentConfig();
+            ['in-baseline','in-threshold','in-normal-q','in-normal-d','in-massive-q','in-massive-d','in-gradual-q','in-gradual-d','in-gradual-decay'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.addEventListener('input', refreshLive);
+            });
+            refreshLive();
+            scheduleVerificacion();
         });
     </script>
 
